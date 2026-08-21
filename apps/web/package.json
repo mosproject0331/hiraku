@@ -20,7 +20,8 @@
     "@hiraku/report": "workspace:*",
     "@hiraku/estimate": "workspace:*",
     "@hiraku/llm": "workspace:*",
-    "@hiraku/regionpack": "workspace:*"
+    "@hiraku/regionpack": "workspace:*",
+    "@hiraku/knowledge": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -138,8 +138,10 @@ export default function EditorPage() {
         <div className="mx-2 h-5 w-px bg-slate-200" />
         <button
           onClick={() => {
-            const snapped = snapToGrid(model, model.moduleMm, 120);
-            loadModel(snapped);
+            mutate((m) => {
+              const snapped = snapToGrid(m, m.moduleMm, 120);
+              m.levels = snapped.levels;
+            });
           }}
           className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm hover:bg-slate-50"
         >

@@ -1,8 +1,9 @@
 import { deserialize, validateOps, type RenovationOp } from '@hiraku/core';
 import { mockHearingPlans, mockHearingTurn, type HearingPlan, type HearingTurn } from './mock';
 import { HEARING_SYSTEM } from './prompts/hearing';
+import { EXPLAINER_SYSTEM } from './prompts/explainer';
 
-export { mockHearingPlans, mockHearingTurn, HEARING_SYSTEM };
+export { mockHearingPlans, mockHearingTurn, HEARING_SYSTEM, EXPLAINER_SYSTEM };
 export type { HearingPlan, HearingTurn };
 
 export type LlmMode = 'mock' | 'live';
@@ -102,4 +103,18 @@ export async function reportQA(question: string, context: string): Promise<strin
     messages: [{ role: 'user', content: 'コンテキスト:\n' + context.slice(0, 30000) + '\n\n質問: ' + question }],
   });
   return res.content.find((b) => b.type === 'text')?.text ?? '';
+}
+
+/** ルール出力の平易化(§8 explainer)。mockは入力をそのまま返す(既に平易文のため) */
+export async function explain(structuredText: string): Promise<string> {
+  if (currentMode() === 'mock') return structuredText;
+  const { default: Anthropic } = await import('@anthropic-ai/sdk');
+  const client = new Anthropic();
+  const res = await client.messages.create({
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
+    max_tokens: 2000,
+    system: EXPLAINER_SYSTEM,
+    messages: [{ role: 'user', content: structuredText }],
+  });
+  return res.content.find((b) => b.type === 'text')?.text ?? structuredText;
 }

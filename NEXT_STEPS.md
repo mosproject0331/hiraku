@@ -11,6 +11,6 @@
 9. [human] 免責文の最終文言チェック — packages/report/src/html.ts
 10. 動画アップロード→Modal→結果通知のジョブキュー連携(web側)
 11. プロジェクトの Cloudflare D1 移行(Repository差し替え)・認証
-12. zustand永続化(リロードで作業中の状態が消える) — persist middleware か Repository 自動保存
 13. 部屋名インライン編集のUX改善、undo対象への実測の統合
-14. 場づくりナレッジ層(§15) — 空き家活用パターンランゲージ27(~/Developer/akiya-pattern-ai)との接続
+13. ナレッジ層の拡充 — 現在11ヒント。27パターン全体への拡張と、建石さんによる文面レビュー(packages/knowledge)
+14. [human] ナレッジ層の問いの文面レビュー(パターンの意図と合っているか)

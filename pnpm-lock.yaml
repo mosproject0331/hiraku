@@ -23,6 +23,9 @@ importers:
       '@hiraku/estimate':
         specifier: workspace:*
         version: link:../../packages/estimate
+      '@hiraku/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
       '@hiraku/llm':
         specifier: workspace:*
         version: link:../../packages/llm
@@ -96,6 +99,15 @@ importers:
       '@hiraku/core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)
+
+  packages/knowledge:
     devDependencies:
       typescript:
         specifier: ^5.7.2

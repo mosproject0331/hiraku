@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import {
   deserialize,
   detectRooms,
@@ -77,7 +78,9 @@ interface EditorState {
   hydrateProject: (p: Project) => void;
 }
 
-export const useEditor = create<EditorState>((set, get) => ({
+export const useEditor = create<EditorState>()(
+  persist(
+    (set, get) => ({
   model: (() => {
     const m = emptyModel();
     refreshRooms(m);
@@ -233,7 +236,24 @@ export const useEditor = create<EditorState>((set, get) => ({
       pendingNodeId: null,
     });
   },
-}));
+}),
+    {
+      name: 'hiraku-editor',
+      partialize: (s) => ({
+        model: s.model,
+        measurements: s.measurements,
+        damagePins: s.damagePins,
+        surveyNotes: s.surveyNotes,
+        projectId: s.projectId,
+        projectName: s.projectName,
+        regionPackId: s.regionPackId,
+        lastDiagnosis: s.lastDiagnosis,
+        lastPlans: s.lastPlans,
+        todoDone: s.todoDone,
+      }),
+    },
+  ),
+);
 
 let idCounter = 0;
 export function freshId(prefix: string): string {

@@ -340,6 +340,8 @@ export default function DiagnosePage() {
                 cs.apply(nd, o.value);
                 return nd;
               });
+              // 選択したら自動で次へ(最後の画面は「診断レポートをつくる」を押してもらう)
+              if (step < totalSteps - 1) window.setTimeout(() => setStep((x) => x + 1), 180);
             }}
             className={
               'rounded-lg border px-4 py-2.5 text-left text-sm ' +

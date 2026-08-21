@@ -6,6 +6,7 @@ import type { Project } from '@hiraku/core';
 import { runDiagnosis } from '@hiraku/rules';
 import { renderDiagnosisReport, renderSurveyReport } from '@hiraku/report';
 import { estimatePlan } from '@hiraku/estimate';
+import { nextHints } from '@hiraku/knowledge';
 import ReportFrame from '@/components/ReportFrame';
 import { useEditor } from '@/lib/store';
 
@@ -78,6 +79,20 @@ export default function ProjectPage() {
     }
   }
 
+  const hints = nextHints({
+    hasModel: s.model.levels[0]!.walls.length > 0,
+    roomCount: s.model.levels[0]!.rooms.length,
+    hasDiagnosis: !!s.lastDiagnosis,
+    heavyFindings: s.lastDiagnosis
+      ? s.lastDiagnosis.report.findings.filter((f) => f.verdict === 'ng' || f.verdict === 'hard').length
+      : 0,
+    hasPlans: !!s.lastPlans?.length,
+    measuredCount: s.measurements.length,
+    pinCount: s.damagePins.length,
+    todoTotal: 0,
+    todoDone: Object.values(s.todoDone).filter(Boolean).length,
+  });
+
   const todoItems = (s.lastDiagnosis?.report.findings ?? [])
     .filter((f) => f.verdict !== 'ok')
     .flatMap((f) =>
@@ -140,6 +155,27 @@ export default function ProjectPage() {
                 ))}
               </ul>
             </section>
+
+            {hints.length > 0 && (
+              <section className="rounded-lg border border-slate-300 bg-white p-4">
+                <h2 className="font-semibold">いま、考えてみてほしいこと</h2>
+                <div className="mt-2 space-y-3">
+                  {hints.map((h) => (
+                    <p
+                      key={h.id}
+                      className={
+                        'rounded-md px-4 py-3 text-sm leading-relaxed ' +
+                        (h.kind === 'kokoro'
+                          ? 'bg-stone-50 text-stone-700'
+                          : 'border border-amber-200 bg-amber-50 text-amber-900')
+                      }
+                    >
+                      {h.text}
+                    </p>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section className="rounded-lg border border-slate-300 bg-white p-4">
               <h2 className="font-semibold">確認事項ToDo — 窓口×質問文</h2>

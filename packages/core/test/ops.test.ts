@@ -69,3 +69,50 @@ describe('applyOps', () => {
     expect(after.levels[0]!.walls).toHaveLength(model.levels[0]!.walls.length);
   });
 });
+
+describe('splitWallAt', () => {
+  it('壁が2本に分かれ、新ノードが挿入される', async () => {
+    const { splitWallAt } = await import('../src/index');
+    const model = load();
+    const level = model.levels[0]!;
+    // w15: (5460,910)-(5460,5460) を中央で分割
+    const next = splitWallAt(level, 'w15', { x: 5460, y: 3185 }, 'nx1');
+    expect(next).not.toBeNull();
+    expect(next!.walls).toHaveLength(level.walls.length + 1);
+    const nn = next!.nodes.find((n) => n.id === 'nx1')!;
+    expect(nn.y).toBe(3185);
+    // 分割後も部屋数は変わらない(トポロジー等価)
+    expect(detectRooms(next!)).toHaveLength(detectRooms(level).length);
+  });
+
+  it('開口は分割位置でどちらかの壁に割り振られoffsetが付け替わる', async () => {
+    const { splitWallAt } = await import('../src/index');
+    const level = load().levels[0]!;
+    // w1: (0,0)-(2730,0) 玄関o1(offset760,width1200,中点1360)。cut=2000で分割→o1は前半に残る
+    const next = splitWallAt(level, 'w1', { x: 2000, y: 0 }, 'nx2')!;
+    const o1 = next.openings.find((o) => o.id === 'o1')!;
+    expect(o1.wallId).toBe('w1');
+    // cut=1000で分割→o1(中点1360)は後半へ移り offset=760-1000→0にクランプ...ではなく360
+    const next2 = splitWallAt(level, 'w1', { x: 1000, y: 0 }, 'nx3')!;
+    const o1b = next2.openings.find((o) => o.id === 'o1')!;
+    expect(o1b.wallId).toBe('w1_s');
+    expect(o1b.offset).toBe(0);
+  });
+
+  it('端に近すぎる分割はnull', async () => {
+    const { splitWallAt } = await import('../src/index');
+    const level = load().levels[0]!;
+    expect(splitWallAt(level, 'w15', { x: 5460, y: 950 }, 'nx4')).toBeNull();
+  });
+});
+
+describe('splitWallAt 連続分割', () => {
+  it('同じ壁系列を2回分割してもIDが衝突しない', async () => {
+    const { splitWallAt } = await import('../src/index');
+    const level = load().levels[0]!;
+    const once = splitWallAt(level, 'w15', { x: 5460, y: 2000 }, 'na')!;
+    const twice = splitWallAt(once, 'w15', { x: 5460, y: 1500 }, 'nb')!;
+    const ids = twice.walls.map((w) => w.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});

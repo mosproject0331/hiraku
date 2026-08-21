@@ -5,6 +5,7 @@ import {
   detectFaces,
   dist,
   polygonCentroid,
+  splitWallAt,
   type Level,
   type Node as PNode,
   type Opening,
@@ -15,7 +16,7 @@ import { CONF_COLOR, OPENING_COLOR } from '@/lib/colors';
 import { freshId, useEditor } from '@/lib/store';
 
 const NODE_R = 70;
-const SNAP_EXISTING = 200;
+const SNAP_EXISTING = 300;
 
 export default function PlanCanvas() {
   const model = useEditor((s) => s.model);
@@ -99,6 +100,28 @@ export default function PlanCanvas() {
     return { x: Math.round(p.x / g) * g, y: Math.round(p.y / g) * g };
   }
 
+  function findWallNear(p: XY, tolMm: number): Wall | undefined {
+    let best: Wall | undefined;
+    let bestD = tolMm;
+    for (const w of level.walls) {
+      const a = nodeById.get(w.a);
+      const b = nodeById.get(w.b);
+      if (!a || !b) continue;
+      const len = dist(a, b);
+      if (len < 1) continue;
+      const t0 = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / (len * len);
+      if (t0 < 0.05 || t0 > 0.95) continue;
+      const fx = a.x + (b.x - a.x) * t0;
+      const fy = a.y + (b.y - a.y) * t0;
+      const d = Math.hypot(p.x - fx, p.y - fy);
+      if (d < bestD) {
+        bestD = d;
+        best = w;
+      }
+    }
+    return best;
+  }
+
   function findNodeNear(p: XY): PNode | undefined {
     let best: PNode | undefined;
     let bestD = SNAP_EXISTING;
@@ -123,11 +146,34 @@ export default function PlanCanvas() {
     if (tool === 'wall') {
       const near = findNodeNear(p);
       const sp = near ?? snapPoint(p);
+      // 素のクリック点(広め)→スナップ後の点(狭め)の順で壁を探し、当たれば分割して接続
+      const rawHit = near ? undefined : findWallNear(p, 420);
+      const snapHit = near || rawHit ? undefined : findWallNear(sp, 80);
+      const hitWall = rawHit ?? snapHit;
+      const splitPoint = rawHit ? p : sp;
       let targetId: string;
       mutate((m) => {
         const lv = m.levels[0]!;
         if (near) {
           targetId = near.id;
+        } else if (hitWall) {
+          // 既存壁の中間に接続: 壁を分割してノードを挿す
+          targetId = freshId('n');
+          const split = splitWallAt(lv, hitWall.id, splitPoint, targetId);
+          if (split) {
+            m.levels[0] = split;
+          } else {
+            m.levels[0]!.nodes.push({ id: targetId, x: sp.x, y: sp.y, confidence: 'measured' });
+          }
+          const lv2 = m.levels[0]!;
+          const pending2 = useEditor.getState().pendingNodeId;
+          if (pending2 && pending2 !== targetId) {
+            lv2.walls.push({
+              id: freshId('w'), a: pending2, b: targetId,
+              thickness: 120, confidence: 'measured', structural: 'unknown',
+            });
+          }
+          return;
         } else {
           targetId = freshId('n');
           lv.nodes.push({ id: targetId, x: sp.x, y: sp.y, confidence: 'measured' });
@@ -157,6 +203,41 @@ export default function PlanCanvas() {
 
   function onWallClick(e: React.MouseEvent, wall: Wall) {
     e.stopPropagation();
+    if (tool === 'wall') {
+      // 壁の中間クリック: 壁を分割してそのノードへ接続(T字)。端に近ければ既存端点へ接続
+      const p = svgPoint(e);
+      if (!p) return;
+      let targetId = '';
+      mutate((m) => {
+        const lv = m.levels[0]!;
+        const newId = freshId('n');
+        const split = splitWallAt(lv, wall.id, p, newId);
+        if (split) {
+          m.levels[0] = split;
+          targetId = newId;
+        } else {
+          const a = lv.nodes.find((n) => n.id === wall.a);
+          const b = lv.nodes.find((n) => n.id === wall.b);
+          if (!a || !b) return;
+          targetId = dist(a, p) <= dist(b, p) ? a.id : b.id;
+        }
+        const lv2 = m.levels[0]!;
+        const pending = useEditor.getState().pendingNodeId;
+        if (pending && pending !== targetId) {
+          const exists = lv2.walls.some(
+            (w) => (w.a === pending && w.b === targetId) || (w.b === pending && w.a === targetId),
+          );
+          if (!exists) {
+            lv2.walls.push({
+              id: freshId('w'), a: pending, b: targetId,
+              thickness: 120, confidence: 'measured', structural: 'unknown',
+            });
+          }
+        }
+      });
+      if (targetId) setPending(targetId);
+      return;
+    }
     if (tool === 'delete') {
       select({ kind: 'wall', id: wall.id });
       mutate((m) => {
@@ -349,7 +430,7 @@ export default function PlanCanvas() {
             {/* 当たり判定 */}
             <line
               x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-              stroke="transparent" strokeWidth={340}
+              stroke="transparent" strokeWidth={520}
               className="cursor-pointer"
               onClick={(e) => onWallClick(e, w)}
             />

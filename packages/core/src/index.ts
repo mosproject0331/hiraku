@@ -8,7 +8,7 @@ export { serialize, deserialize } from './serialize';
 export type { SerializedModel } from './serialize';
 export { takeoff, roomWallAreaM2, roomAreaM2 } from './takeoff';
 export type { Takeoff, WallQuantity } from './takeoff';
-export { validateOps, applyOps } from './ops';
+export { validateOps, applyOps, splitWallAt } from './ops';
 export type { OpIssue } from './ops';
 export { solveConstraints, suggestNextMeasurements } from './measure';
 export type { MeasureSuggestion } from './measure';

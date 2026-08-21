@@ -143,3 +143,46 @@ export function applyOps(model: SpaceModel, ops: RenovationOp[]): SpaceModel {
   for (const lv of next.levels) lv.rooms = detectRooms(lv);
   return next;
 }
+
+/**
+ * 壁を点pの足元で2本に分割し、新ノードを挿入した新しいLevelを返す。
+ * 端に近すぎる(100mm未満)・壁が見つからない場合はnull。
+ * 開口は中点がどちら側にあるかで割り振り、offsetを付け替える。
+ */
+export function splitWallAt(
+  level: Level,
+  wallId: string,
+  p: { x: number; y: number },
+  newNodeId: string,
+): Level | null {
+  const wall = level.walls.find((w) => w.id === wallId);
+  if (!wall) return null;
+  const a = level.nodes.find((n) => n.id === wall.a);
+  const b = level.nodes.find((n) => n.id === wall.b);
+  if (!a || !b) return null;
+  const len = dist(a, b);
+  if (len < 200) return null;
+  const t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / (len * len);
+  const cut = t * len;
+  if (cut < 100 || cut > len - 100) return null;
+  const foot = {
+    x: Math.round(a.x + (b.x - a.x) * t),
+    y: Math.round(a.y + (b.y - a.y) * t),
+  };
+  const next: Level = structuredClone(level);
+  const w = next.walls.find((x) => x.id === wallId)!;
+  next.nodes.push({ id: newNodeId, x: foot.x, y: foot.y, confidence: 'measured' });
+  let w2Id = wallId + '_s';
+  while (next.walls.some((x) => x.id === w2Id)) w2Id += 's';
+  next.walls.push({ ...structuredClone(w), id: w2Id, a: newNodeId, b: w.b });
+  w.b = newNodeId;
+  for (const o of next.openings) {
+    if (o.wallId !== wallId) continue;
+    const mid = o.offset + o.width / 2;
+    if (mid > cut) {
+      o.wallId = w2Id;
+      o.offset = Math.max(0, Math.round(o.offset - cut));
+    }
+  }
+  return next;
+}
