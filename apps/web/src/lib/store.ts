@@ -3,12 +3,15 @@ import {
   deserialize,
   detectRooms,
   serialize,
+  solveConstraints,
+  type DamagePin,
+  type Measurement,
   type Opening,
   type SpaceModel,
 } from '@hiraku/core';
 
-export type Tool = 'select' | 'wall' | 'opening' | 'delete';
-export type Selected = { kind: 'node' | 'wall' | 'opening'; id: string } | null;
+export type Tool = 'select' | 'wall' | 'opening' | 'delete' | 'pin';
+export type Selected = { kind: 'node' | 'wall' | 'opening' | 'pin'; id: string } | null;
 
 export function emptyModel(): SpaceModel {
   return {
@@ -28,6 +31,10 @@ function refreshRooms(m: SpaceModel): void {
 
 interface EditorState {
   model: SpaceModel;
+  measurements: Measurement[];
+  damagePins: DamagePin[];
+  surveyNotes: string;
+  pinCategory: DamagePin['category'];
   tool: Tool;
   openingKind: Opening['kind'];
   selected: Selected;
@@ -44,6 +51,13 @@ interface EditorState {
   loadModel: (m: SpaceModel) => void;
   undo: () => void;
   redo: () => void;
+  setPinCategory: (c: DamagePin['category']) => void;
+  setSurveyNotes: (s: string) => void;
+  addMeasurement: (m: Omit<Measurement, 'id' | 'createdAt'>) => void;
+  removeMeasurement: (id: string) => void;
+  addPin: (x: number, y: number) => string;
+  updatePin: (id: string, patch: Partial<DamagePin>) => void;
+  removePin: (id: string) => void;
 }
 
 export const useEditor = create<EditorState>((set, get) => ({
@@ -54,6 +68,10 @@ export const useEditor = create<EditorState>((set, get) => ({
   })(),
   tool: 'select',
   openingKind: 'door',
+  measurements: [],
+  damagePins: [],
+  surveyNotes: '',
+  pinCategory: '雨漏り',
   selected: null,
   pendingNodeId: null,
   history: [],
@@ -81,6 +99,39 @@ export const useEditor = create<EditorState>((set, get) => ({
     const next = structuredClone(m);
     refreshRooms(next);
     set({ model: next, history: [], future: [], selected: null, pendingNodeId: null });
+  },
+  setPinCategory: (pinCategory) => set({ pinCategory }),
+  setSurveyNotes: (surveyNotes) => set({ surveyNotes }),
+  addMeasurement: (m) => {
+    const { model, measurements, history } = get();
+    const meas: Measurement = { ...m, id: freshId('m'), createdAt: new Date().toISOString() };
+    const all = [...measurements, meas];
+    const solved = solveConstraints(model, all);
+    set({
+      model: solved,
+      measurements: all,
+      history: [...history.slice(-49), serialize(model)],
+      future: [],
+    });
+  },
+  removeMeasurement: (id) => {
+    // 幾何は現状のまま残し、一覧からだけ外す(再適用は残りの実測で行う)
+    const { model, measurements } = get();
+    const rest = measurements.filter((x) => x.id !== id);
+    set({ measurements: rest, model: solveConstraints(model, rest) });
+  },
+  addPin: (x, y) => {
+    const { damagePins, pinCategory, model } = get();
+    const id = freshId('p');
+    const pin = { id, levelId: model.levels[0]!.id, x: Math.round(x), y: Math.round(y), category: pinCategory, memo: '' };
+    set({ damagePins: [...damagePins, pin] });
+    return id;
+  },
+  updatePin: (id, patch) => {
+    set({ damagePins: get().damagePins.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
+  },
+  removePin: (id) => {
+    set({ damagePins: get().damagePins.filter((p) => p.id !== id), selected: null });
   },
   undo: () => {
     const { history, future, model } = get();

@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import {
   deserialize,
   dist,
@@ -15,6 +15,7 @@ import {
 import sampleRaw from '@hiraku/core/fixtures/sample-minka.json';
 import PlanCanvas from '@/components/PlanCanvas';
 import { CONF_COLOR, CONF_LABEL, OPENING_LABEL } from '@/lib/colors';
+import { suggestNextMeasurements } from '@hiraku/core';
 import { useEditor, type Tool } from '@/lib/store';
 
 const Preview3D = dynamic(() => import('@/components/Preview3D'), { ssr: false });
@@ -23,8 +24,11 @@ const TOOLS: { id: Tool; label: string }[] = [
   { id: 'select', label: '選択' },
   { id: 'wall', label: '壁を描く' },
   { id: 'opening', label: '開口' },
+  { id: 'pin', label: '劣化ピン' },
   { id: 'delete', label: '削除' },
 ];
+
+const PIN_CATEGORIES = ['雨漏り', '腐朽', '蟻害', '傾き', '設備', 'その他'] as const;
 
 export default function EditorPage() {
   const model = useEditor((s) => s.model);
@@ -32,6 +36,8 @@ export default function EditorPage() {
   const openingKind = useEditor((s) => s.openingKind);
   const selected = useEditor((s) => s.selected);
   const history = useEditor((s) => s.history);
+  const measurements = useEditor((s) => s.measurements);
+  const damagePins = useEditor((s) => s.damagePins);
   const future = useEditor((s) => s.future);
   const { setTool, setOpeningKind, loadModel, mutate, undo, redo, select } = useEditor.getState();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -40,6 +46,8 @@ export default function EditorPage() {
   const nodeById = new Map(level.nodes.map((n) => [n.id, n] as const));
 
   const selWall = selected?.kind === 'wall' ? level.walls.find((w) => w.id === selected.id) : undefined;
+  const selPin = selected?.kind === 'pin' ? damagePins.find((p) => p.id === selected.id) : undefined;
+  const suggestions = suggestNextMeasurements(model, measurements);
   const selOpening = selected?.kind === 'opening' ? level.openings.find((o) => o.id === selected.id) : undefined;
   const selNode = selected?.kind === 'node' ? level.nodes.find((n) => n.id === selected.id) : undefined;
 
@@ -87,6 +95,17 @@ export default function EditorPage() {
           >
             {(Object.keys(OPENING_LABEL) as Opening['kind'][]).map((k) => (
               <option key={k} value={k}>{OPENING_LABEL[k]}</option>
+            ))}
+          </select>
+        )}
+        {tool === 'pin' && (
+          <select
+            value={useEditor.getState().pinCategory}
+            onChange={(e) => useEditor.getState().setPinCategory(e.target.value as (typeof PIN_CATEGORIES)[number])}
+            className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+          >
+            {PIN_CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
         )}
@@ -230,6 +249,95 @@ export default function EditorPage() {
                 頂点 ({(selNode.x / 1000).toFixed(2)}, {(selNode.y / 1000).toFixed(2)})m / {CONF_LABEL[selNode.confidence]}
               </div>
             )}
+            {selPin && (
+              <div className="space-y-2 text-xs">
+                <div className="text-sm font-semibold text-red-700">劣化ピン #{damagePins.indexOf(selPin) + 1}</div>
+                <select
+                  value={selPin.category}
+                  onChange={(e) => useEditor.getState().updatePin(selPin.id, { category: e.target.value as typeof selPin.category })}
+                  className="rounded border border-slate-300 px-1 py-0.5"
+                >
+                  {PIN_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <textarea
+                  value={selPin.memo}
+                  onChange={(e) => useEditor.getState().updatePin(selPin.id, { memo: e.target.value })}
+                  placeholder="メモ(例: 天井にシミ、押すと沈む)"
+                  className="h-16 w-full rounded border border-slate-300 px-2 py-1"
+                />
+                <button onClick={() => useEditor.getState().removePin(selPin.id)} className="rounded border border-red-300 px-2 py-1 text-red-700 hover:bg-red-50">
+                  このピンを削除
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 実測 */}
+          <div className="border-b border-slate-200 px-3 py-2 text-sm">
+            <div className="mb-1 text-xs font-semibold text-slate-500">実測 — 入れるほど図が確かになります</div>
+            {selWall && (
+              <MeasureInput
+                label="選択中の壁の実測長(mm)"
+                onSubmit={(v) => useEditor.getState().addMeasurement({ type: 'wallLength', targetIds: [selWall.id], valueMm: v })}
+              />
+            )}
+            {selOpening && (
+              <MeasureInput
+                label="選択中の開口の実測幅(mm)"
+                onSubmit={(v) => useEditor.getState().addMeasurement({ type: 'openingWidth', targetIds: [selOpening.id], valueMm: v })}
+              />
+            )}
+            {selWall && (
+              <MeasureInput
+                label="選択中の壁の傾き(0.1°単位, 例: 1.5°→15)"
+                onSubmit={(v) => useEditor.getState().addMeasurement({ type: 'tilt', targetIds: [selWall.id], valueMm: v, note: '手入力' })}
+              />
+            )}
+            <MeasureInput
+              label="天井高(mm)"
+              onSubmit={(v) => useEditor.getState().addMeasurement({ type: 'ceilingHeight', targetIds: [], valueMm: v })}
+            />
+            {!selWall && !selOpening && (
+              <p className="mt-1 text-xs text-slate-400">壁や開口を選択すると、その実測値を入れられます</p>
+            )}
+
+            <div className="mt-2 text-xs font-semibold text-slate-500">次に測ると効く場所</div>
+            <ul className="mt-1 space-y-1 text-xs">
+              {suggestions.map((s, i) => (
+                <li key={i}>
+                  <button
+                    onClick={() => {
+                      if (s.kind === 'wall') select({ kind: 'wall', id: s.targetIds[0]! });
+                    }}
+                    className="text-left text-blue-700 hover:underline"
+                  >
+                    {s.label}
+                  </button>
+                  <span className="ml-1 text-slate-400">— {s.reason}</span>
+                </li>
+              ))}
+            </ul>
+
+            {measurements.length > 0 && (
+              <div className="mt-2">
+                <div className="text-xs font-semibold text-slate-500">実測一覧({measurements.length})</div>
+                <ul className="mt-1 space-y-0.5 text-xs">
+                  {measurements.map((m) => (
+                    <li key={m.id} className="flex items-center justify-between">
+                      <span>
+                        {{ wallLength: '壁長', diagonal: '対角', ceilingHeight: '天井高', openingWidth: '開口幅', tilt: '傾き' }[m.type]}: {m.valueMm.toLocaleString()}mm
+                      </span>
+                      <button onClick={() => useEditor.getState().removeMeasurement(m.id)} className="text-slate-400 hover:text-red-600">×</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <Link href="/survey" className="mt-2 inline-block rounded border border-slate-300 px-2.5 py-1.5 text-xs hover:bg-slate-50">
+              現況調査報告書をつくる
+            </Link>
           </div>
 
           {/* 部屋一覧 */}
@@ -271,6 +379,36 @@ export default function EditorPage() {
           </div>
         </aside>
       </div>
+    </div>
+  );
+}
+
+
+function MeasureInput({ label, onSubmit }: { label: string; onSubmit: (v: number) => void }) {
+  const [v, setV] = useState('');
+  return (
+    <div className="mt-1 flex items-end gap-1">
+      <label className="flex-1 text-xs text-slate-600">
+        {label}
+        <input
+          value={v}
+          onChange={(e) => setV(e.target.value)}
+          type="number"
+          className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1"
+        />
+      </label>
+      <button
+        onClick={() => {
+          const n = Number(v);
+          if (n > 0) {
+            onSubmit(n);
+            setV('');
+          }
+        }}
+        className="rounded bg-slate-800 px-2 py-1 text-xs text-white"
+      >
+        登録
+      </button>
     </div>
   );
 }

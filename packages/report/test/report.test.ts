@@ -52,3 +52,28 @@ describe('esc', () => {
     expect(esc(`<a href="x" onclick='y'>&`)).toBe('&lt;a href=&quot;x&quot; onclick=&#39;y&#39;&gt;&amp;');
   });
 });
+
+describe('現況調査報告書', async () => {
+  const { deserialize, solveConstraints } = await import('@hiraku/core');
+  const { renderSurveyReport } = await import('../src/index');
+  const raw = (await import('../../core/fixtures/sample-minka.json')).default;
+  const model = solveConstraints(deserialize(JSON.stringify(raw)), [
+    { id: 'm1', type: 'wallLength', targetIds: ['w9'], valueMm: 5600, createdAt: '2026-08-22T00:00:00Z' },
+  ]);
+  const html = renderSurveyReport(
+    model,
+    [{ id: 'm1', type: 'wallLength', targetIds: ['w9'], valueMm: 5600, createdAt: '2026-08-22T00:00:00Z' }],
+    [{ id: 'p1', levelId: 'L1', x: 1000, y: 1000, category: '雨漏り', memo: '天井にシミ<b>', photoRef: undefined }],
+    '全体に湿気が強い',
+  );
+  it('平面図SVG・実測・ピン・所見が入る', () => {
+    expect(html).toContain('<svg');
+    expect(html).toContain('5,600 mm');
+    expect(html).toContain('雨漏り');
+    expect(html).toContain('全体に湿気が強い');
+    expect(html).not.toContain('<b>');
+  });
+  it('実測済みの壁は緑で描かれる', () => {
+    expect(html).toContain('#16a34a');
+  });
+});

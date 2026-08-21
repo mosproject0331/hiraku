@@ -23,6 +23,7 @@ export default function PlanCanvas() {
   const openingKind = useEditor((s) => s.openingKind);
   const selected = useEditor((s) => s.selected);
   const pendingNodeId = useEditor((s) => s.pendingNodeId);
+  useEditor((s) => s.damagePins);
   const { mutate, checkpoint, select, setPending, undo, redo } = useEditor.getState();
 
   const svgRef = useRef<SVGSVGElement>(null);
@@ -114,6 +115,11 @@ export default function PlanCanvas() {
   function onBackgroundClick(e: React.MouseEvent) {
     const p = svgPoint(e);
     if (!p) return;
+    if (tool === 'pin') {
+      const id = useEditor.getState().addPin(p.x, p.y);
+      select({ kind: 'pin', id });
+      return;
+    }
     if (tool === 'wall') {
       const near = findNodeNear(p);
       const sp = near ?? snapPoint(p);
@@ -391,6 +397,28 @@ export default function PlanCanvas() {
             )}
             <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#ffffff" strokeWidth={w.thickness + 10} />
             <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={OPENING_COLOR[o.kind]} strokeWidth={70} />
+          </g>
+        );
+      })}
+
+      {/* 劣化ピン */}
+      {useEditor.getState().damagePins.map((pin, i) => {
+        const isSel = selected?.kind === 'pin' && selected.id === pin.id;
+        return (
+          <g
+            key={pin.id}
+            className="cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (tool === 'delete') useEditor.getState().removePin(pin.id);
+              else select({ kind: 'pin', id: pin.id });
+            }}
+          >
+            {isSel && <circle cx={pin.x} cy={pin.y} r={330} fill="none" stroke="#2563eb" strokeWidth={40} />}
+            <circle cx={pin.x} cy={pin.y} r={230} fill="#dc2626" opacity={0.9} />
+            <text x={pin.x} y={pin.y + 110} fontSize={300} fill="#ffffff" textAnchor="middle" fontWeight={700}>
+              {i + 1}
+            </text>
           </g>
         );
       })}

@@ -15,3 +15,7 @@
 ## P3 改修+見積 — 完了
 - できたこと: core(takeoff/validateOps/applyOps+8テスト) / estimate(工事項目マスタ40・見積エンジン・3区分レンジ・構造警告・7テスト) / llm(mock会話2往復→3案・live経路+zod検証+1リトライ→mockフォールバック・2テスト) / web(/plan: チャット→3案カード→内訳手順→間取りへ適用) / ブラウザ通し確認済(サンプル→相談→3案表示・参考値バッジ)
 - やらないことにした事: zustand永続化(リロードで消えるのは既知。Repository実装はP6/NEXT_STEPSへ)。<a>遷移はstoreが消えるためnext/linkに統一。
+
+## P4 実測 — 完了
+- できたこと: core(solveConstraints逐次調整+確度更新・計測ナビ+5テスト) / report(現況調査報告書: 平面図SVG・実測一覧・劣化ピン・所見+2テスト) / web(実測入力パネル・計測ナビ・実測一覧削除・劣化ピンツール・/survey) / DistanceMeterAdapter(手入力+BTスケルトン) / ブラウザ確認済(壁長2本→緑→面積再計算→報告書表示)
+- やらないことにした事: DeviceOrientation API連動(実機がない環境で検証不能)→傾きは手入力。厳密最小二乗→逐次調整(仕様が「厳密さより安定性」)。
