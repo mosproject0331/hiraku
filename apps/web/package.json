@@ -17,7 +17,9 @@
     "zustand": "^5.0.15",
     "@hiraku/core": "workspace:*",
     "@hiraku/rules": "workspace:*",
-    "@hiraku/report": "workspace:*"
+    "@hiraku/report": "workspace:*",
+    "@hiraku/estimate": "workspace:*",
+    "@hiraku/llm": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

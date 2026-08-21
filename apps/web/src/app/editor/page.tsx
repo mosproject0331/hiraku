@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useRef } from 'react';
 import {
   deserialize,
@@ -63,7 +64,7 @@ export default function EditorPage() {
   return (
     <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
       <header className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
-        <a href="/" className="mr-2 text-sm font-semibold text-slate-500 hover:text-slate-800">HIRAKU</a>
+        <Link href="/" className="mr-2 text-sm font-semibold text-slate-500 hover:text-slate-800">HIRAKU</Link>
         <div className="flex overflow-hidden rounded-md border border-slate-300">
           {TOOLS.map((t) => (
             <button
@@ -137,6 +138,7 @@ export default function EditorPage() {
         >
           モジュール推定
         </button>
+        <Link href="/plan" className="rounded bg-emerald-700 px-2.5 py-1.5 text-sm text-white hover:bg-emerald-600">改修の相談へ</Link>
         <span className="ml-auto text-xs text-slate-500">モジュール {model.moduleMm}mm</span>
       </header>
 

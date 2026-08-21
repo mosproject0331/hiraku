@@ -6,3 +6,7 @@ export { snapToGrid } from './grid';
 export { estimateModule } from './module';
 export { serialize, deserialize } from './serialize';
 export type { SerializedModel } from './serialize';
+export { takeoff, roomWallAreaM2, roomAreaM2 } from './takeoff';
+export type { Takeoff, WallQuantity } from './takeoff';
+export { validateOps, applyOps } from './ops';
+export type { OpIssue } from './ops';

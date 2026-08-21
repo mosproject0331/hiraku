@@ -19,6 +19,12 @@ const CARDS = [
     body: '図面が無くても大丈夫。壁を描いて間取りと簡易3Dをつくり、実測で精度を上げます。',
     ready: true,
   },
+  {
+    href: '/plan',
+    title: '改修の相談(3案+概算)',
+    body: '要望を伝えると最小案・標準案・攻め案の3案と、DIY/専門工事に分けた材料費レンジが出ます。',
+    ready: true,
+  },
 ] as const;
 
 export default function Home() {
