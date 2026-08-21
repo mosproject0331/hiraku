@@ -40,3 +40,21 @@ export function pointInPolygon(p: XY, poly: XY[]): boolean {
   }
   return inside;
 }
+
+/** 面積加重の多角形重心 */
+export function polygonCentroid(pts: XY[]): XY {
+  let a = 0;
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i]!;
+    const q = pts[(i + 1) % pts.length]!;
+    const cross = p.x * q.y - q.x * p.y;
+    a += cross;
+    cx += (p.x + q.x) * cross;
+    cy += (p.y + q.y) * cross;
+  }
+  a /= 2;
+  if (Math.abs(a) < 1) return pts[0] ?? { x: 0, y: 0 };
+  return { x: cx / (6 * a), y: cy / (6 * a) };
+}
