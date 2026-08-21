@@ -1,0 +1,136 @@
+export type Confidence = 'estimated' | 'hypothesis' | 'measured';
+
+export interface Node {
+  id: string;
+  x: number;
+  y: number;
+  confidence: Confidence;
+}
+
+export interface Wall {
+  id: string;
+  a: string;
+  b: string;
+  thickness: number; // default 120
+  confidence: Confidence;
+  structural: 'unknown' | 'suspected' | 'cleared_by_expert';
+}
+
+export interface Opening {
+  id: string;
+  wallId: string;
+  offset: number;
+  width: number;
+  height: number;
+  sillHeight: number;
+  kind: 'door' | 'window' | 'entrance' | 'other';
+  confidence: Confidence;
+}
+
+export interface Room {
+  id: string;
+  name: string;
+  wallLoop: string[];
+  areaM2: number;
+  tatami: number;
+}
+
+export interface NameHint {
+  x: number;
+  y: number;
+  name: string;
+}
+
+export interface Level {
+  id: string;
+  name: string;
+  heightMm: number;
+  walls: Wall[];
+  nodes: Node[];
+  openings: Opening[];
+  rooms: Room[];
+  /** 拡張: サンプル・recon出力が部屋名の位置ヒントを運ぶ(ASSUMPTIONS参照) */
+  nameHints?: NameHint[];
+}
+
+export interface SpaceModel {
+  id: string;
+  levels: Level[];
+  moduleMm: number; // 既定910
+  scaleFactor: number;
+  version: number;
+}
+
+export interface Measurement {
+  id: string;
+  type: 'wallLength' | 'diagonal' | 'ceilingHeight' | 'openingWidth' | 'tilt';
+  targetIds: string[];
+  valueMm: number;
+  note?: string;
+  createdAt: string;
+}
+
+export interface DamagePin {
+  id: string;
+  levelId: string;
+  x: number;
+  y: number;
+  category: '雨漏り' | '腐朽' | '蟻害' | '傾き' | '設備' | 'その他';
+  photoRef?: string;
+  memo: string;
+}
+
+export interface Property {
+  address?: string;
+  lat?: number;
+  lng?: number;
+  landCategory?: string;
+  builtYear?: number;
+  notes: string;
+}
+
+export interface XYPoint {
+  x: number;
+  y: number;
+}
+
+export type RenovationOp =
+  | { op: 'remove_partition'; wallId: string }
+  | { op: 'add_partition'; a: XYPoint; b: XYPoint }
+  | {
+      op: 'add_opening';
+      wallId: string;
+      offset: number;
+      width: number;
+      height: number;
+      sillHeight: number;
+      kind: Opening['kind'];
+    }
+  | { op: 'close_opening'; openingId: string }
+  | { op: 'change_floor' | 'change_wall_finish' | 'change_ceiling'; roomId: string; finishId: string }
+  | { op: 'add_water_unit'; roomId: string; unit: 'kitchen' | 'toilet' | 'bath' | 'sink'; routeNote: string }
+  | { op: 'insulate'; target: 'floor' | 'ceiling' | 'window_inner'; roomId?: string }
+  | { op: 'electrical'; work: 'add_outlet' | 'add_circuit' | 'lighting_diy'; count: number; roomId?: string };
+
+export interface RenovationPlan {
+  id: string;
+  name: string;
+  intent: string;
+  ops: RenovationOp[];
+  createdAt: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  property: Property;
+  model?: SpaceModel;
+  measurements: Measurement[];
+  damagePins: DamagePin[];
+  /** 型は packages/rules 側。coreは循環依存を避け unknown で保持(ASSUMPTIONS参照) */
+  diagnosis?: { input: unknown; report?: unknown };
+  plans: RenovationPlan[];
+  regionPackId?: string;
+  createdAt: string;
+  updatedAt: string;
+}

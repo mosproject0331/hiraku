@@ -1,0 +1,291 @@
+{
+  "schema": "hiraku/space-model",
+  "version": 1,
+  "model": {
+    "id": "sample-minka",
+    "levels": [
+      {
+        "id": "L1",
+        "name": "1階",
+        "heightMm": 2400,
+        "walls": [
+          {
+            "id": "w1",
+            "a": "n1",
+            "b": "n2",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "suspected"
+          },
+          {
+            "id": "w2",
+            "a": "n2",
+            "b": "n3",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "suspected"
+          },
+          {
+            "id": "w3",
+            "a": "n3",
+            "b": "n4",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "suspected"
+          },
+          {
+            "id": "w4",
+            "a": "n4",
+            "b": "n5",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "suspected"
+          },
+          {
+            "id": "w5",
+            "a": "n5",
+            "b": "n6",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "suspected"
+          },
+          {
+            "id": "w6",
+            "a": "n6",
+            "b": "n7",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "suspected"
+          },
+          {
+            "id": "w7",
+            "a": "n7",
+            "b": "n8",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "suspected"
+          },
+          {
+            "id": "w8",
+            "a": "n8",
+            "b": "n9",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "suspected"
+          },
+          {
+            "id": "w9",
+            "a": "n9",
+            "b": "n1",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "suspected"
+          },
+          {
+            "id": "w10",
+            "a": "n2",
+            "b": "n10",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w11",
+            "a": "n10",
+            "b": "n8",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w12",
+            "a": "n10",
+            "b": "n11",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w13",
+            "a": "n11",
+            "b": "n12",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w14",
+            "a": "n12",
+            "b": "n4",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w15",
+            "a": "n11",
+            "b": "n7",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w16",
+            "a": "n12",
+            "b": "n6",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "n1",
+            "x": 0,
+            "y": 0,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n2",
+            "x": 2730,
+            "y": 0,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n3",
+            "x": 10920,
+            "y": 0,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n4",
+            "x": 10920,
+            "y": 910,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n5",
+            "x": 10920,
+            "y": 5460,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n6",
+            "x": 8190,
+            "y": 5460,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n7",
+            "x": 5460,
+            "y": 5460,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n8",
+            "x": 2730,
+            "y": 5460,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n9",
+            "x": 0,
+            "y": 5460,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n10",
+            "x": 2730,
+            "y": 910,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n11",
+            "x": 5460,
+            "y": 910,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n12",
+            "x": 8190,
+            "y": 910,
+            "confidence": "estimated"
+          }
+        ],
+        "openings": [
+          {
+            "id": "o1",
+            "wallId": "w1",
+            "offset": 760,
+            "width": 1200,
+            "height": 2000,
+            "sillHeight": 0,
+            "kind": "entrance",
+            "confidence": "estimated"
+          },
+          {
+            "id": "o2",
+            "wallId": "w6",
+            "offset": 540,
+            "width": 1650,
+            "height": 1100,
+            "sillHeight": 800,
+            "kind": "window",
+            "confidence": "estimated"
+          },
+          {
+            "id": "o3",
+            "wallId": "w12",
+            "offset": 900,
+            "width": 900,
+            "height": 1900,
+            "sillHeight": 0,
+            "kind": "door",
+            "confidence": "estimated"
+          },
+          {
+            "id": "o4",
+            "wallId": "w9",
+            "offset": 1800,
+            "width": 1650,
+            "height": 1100,
+            "sillHeight": 800,
+            "kind": "window",
+            "confidence": "estimated"
+          }
+        ],
+        "rooms": [],
+        "nameHints": [
+          {
+            "x": 1365,
+            "y": 2730,
+            "name": "土間"
+          },
+          {
+            "x": 6825,
+            "y": 455,
+            "name": "廊下"
+          },
+          {
+            "x": 4095,
+            "y": 3185,
+            "name": "和室A"
+          },
+          {
+            "x": 6825,
+            "y": 3185,
+            "name": "和室B"
+          },
+          {
+            "x": 9555,
+            "y": 3185,
+            "name": "和室C"
+          }
+        ]
+      }
+    ],
+    "moduleMm": 910,
+    "scaleFactor": 1,
+    "version": 1
+  }
+}
