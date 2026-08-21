@@ -7,3 +7,8 @@
 - [P0] add_water_unit に routeNote(給排水経路メモ)を必須フィールドとして型に含めた(仕様§5-M6の「必須入力に」を型で強制)。
 - [P0] fixtureの外周壁は structural='suspected'、内部間仕切りは 'unknown'(§2-4)。
 - [P0] pnpm11: ビルドスクリプト許可は pnpm-workspace.yaml の onlyBuiltDependencies。verifyDepsBeforeRun: false(テスト実行毎のinstall検査が煩雑なため)。
+- [P1] Next.js は仕様の15ではなく16.3.2(現行安定版)。App Router/挙動は同等。
+- [P1] 3D回転ズームは three/addons の OrbitControls ではなく自作(球面座標)。drei/型定義のオーバーヘッド回避。
+- [P1] ユーザーが描いた・動かした要素は confidence='measured'(§2-7「人の修正は measured として尊重」に従う)。
+- [P1] 部屋名の永続化は nameHints(重心座標+名前)方式。部屋は検出のたび再生成されるため。
+- [P1] DesiredUse は9リテラル(宿を住宅宿泊/簡易宿所に分割)。UI上は「宿」1カードでサブ選択にし、仕様の「8種」との見た目を保つ。

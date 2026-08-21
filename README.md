@@ -15,3 +15,4 @@ pnpm dev         # http://localhost:3000 (apps/web)
 ## デモ手順
 
 - (P0) `pnpm --filter @hiraku/core test` — 幾何コアのテスト
+- (P1) `pnpm dev` → http://localhost:3000/editor — サンプル読込→壁の編集→面積追随

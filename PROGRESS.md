@@ -3,3 +3,7 @@
 ## P0 基盤+コア — 完了
 - できたこと: pnpmモノレポ scaffold / packages/core(型・detectRooms・面積畳数・snapToGrid・estimateModule・serialize) / サンプル間取りfixture(土間+廊下+和室3室) / vitest 13本 green
 - やらないことにした事: corepack(Node25で非同梱)→ npm -g pnpm。package.jsonのpnpmフィールド(pnpm11が読まない)→ pnpm-workspace.yamlに設定。
+
+## P1 エディタ — 完了
+- できたこと: apps/web(Next.js16/Tailwind4/zustand) / SVG 2Dエディタ(描画・選択・ドラッグ・開口・削除・寸法・確度3色・undo/redo・部屋名編集) / three.js 3Dプレビュー(回転ズーム自作) / サンプル読込・JSON入出力・グリッド吸着・モジュール推定 / ブラウザ実機確認済(サンプル5部屋認識・壁削除で部屋結合と面積追随・3D同期)
+- やらないことにした事: drei(OrbitControls用に重い)→カメラ操作を自作。Next15指定→16.3.2(現行安定版)を採用しASSUMPTIONSに記録。
