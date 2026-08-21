@@ -1,0 +1,151 @@
+{
+  "schema": "hiraku/space-model",
+  "version": 1,
+  "model": {
+    "id": "recon-draft",
+    "levels": [
+      {
+        "id": "L1",
+        "name": "1\u968e",
+        "heightMm": 2366,
+        "walls": [
+          {
+            "id": "w1",
+            "a": "n1",
+            "b": "n2",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w2",
+            "a": "n2",
+            "b": "n3",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w3",
+            "a": "n4",
+            "b": "n5",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w4",
+            "a": "n5",
+            "b": "n6",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w5",
+            "a": "n7",
+            "b": "n8",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w6",
+            "a": "n1",
+            "b": "n4",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w7",
+            "a": "n4",
+            "b": "n7",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w8",
+            "a": "n2",
+            "b": "n5",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w9",
+            "a": "n3",
+            "b": "n6",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          },
+          {
+            "id": "w10",
+            "a": "n6",
+            "b": "n8",
+            "thickness": 120,
+            "confidence": "estimated",
+            "structural": "unknown"
+          }
+        ],
+        "nodes": [
+          {
+            "id": "n1",
+            "x": 0,
+            "y": 1,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n2",
+            "x": 3641,
+            "y": 1,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n3",
+            "x": 7280,
+            "y": 1,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n4",
+            "x": 0,
+            "y": 3639,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n5",
+            "x": 3641,
+            "y": 3639,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n6",
+            "x": 7280,
+            "y": 3639,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n7",
+            "x": 0,
+            "y": 4550,
+            "confidence": "estimated"
+          },
+          {
+            "id": "n8",
+            "x": 7280,
+            "y": 4550,
+            "confidence": "estimated"
+          }
+        ],
+        "openings": [],
+        "rooms": []
+      }
+    ],
+    "moduleMm": 910,
+    "scaleFactor": 1,
+    "version": 1
+  }
+}

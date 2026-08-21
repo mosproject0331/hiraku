@@ -25,6 +25,12 @@ const CARDS = [
     body: '要望を伝えると最小案・標準案・攻め案の3案と、DIY/専門工事に分けた材料費レンジが出ます。',
     ready: true,
   },
+  {
+    href: '/project',
+    title: 'プロジェクト(保存・統合ビュー)',
+    body: '診断・間取り・実測・改修案をひとつの物件として保存し、確認事項ToDoとAI質問で伴走します。',
+    ready: true,
+  },
 ] as const;
 
 export default function Home() {

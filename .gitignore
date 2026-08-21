@@ -6,3 +6,5 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+workers/recon/tests/_data/
+workers/recon/fixtures/

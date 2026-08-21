@@ -8,9 +8,25 @@ import {
   type DiagnosisReport,
   type Verdict,
 } from '@hiraku/rules';
+import { getRegionPack } from '@hiraku/regionpack';
 import { DISCLAIMER, esc, htmlDoc } from './html';
 
 const V_ORDER: Verdict[] = ['ok', 'conditional', 'hard', 'ng', 'unknown'];
+
+function renderRegionSection(regionPackId?: string): string {
+  if (!regionPackId) return '';
+  const pack = getRegionPack(regionPackId);
+  if (!pack) return '';
+  const item = (i: { title: string; summary: string }) =>
+    `<li><b>${esc(i.title)}</b> — ${esc(i.summary)}<span class="badge">参考値・要検証</span></li>`;
+  return `
+    <h2>地域情報(パック適用時): ${esc(pack.name)}</h2>
+    <p class="meta">この地域パックの内容はプレースホルダです。実データの投入・検証が必要です。</p>
+    <h3>条例・上乗せ</h3><ul>${pack.ordinances.map(item).join('')}</ul>
+    <h3>補助金</h3><ul>${pack.subsidies.map(item).join('')}</ul>
+    <h3>窓口</h3><ul>${pack.contacts.map(item).join('')}</ul>
+    <h3>ローカル知見</h3><ul>${pack.localKnowledge.map(item).join('')}</ul>`;
+}
 
 function inputSummary(input: DiagnosisInput): string {
   const zone = input.youtoChiiki === 'unknown' ? 'わからない' : ZONE_LABEL[input.youtoChiiki];
@@ -27,7 +43,7 @@ function inputSummary(input: DiagnosisInput): string {
     .join('')}</tbody></table>`;
 }
 
-export function renderDiagnosisReport(input: DiagnosisInput, report: DiagnosisReport): string {
+export function renderDiagnosisReport(input: DiagnosisInput, report: DiagnosisReport, regionPackId?: string): string {
   const counts = V_ORDER.map(
     (v) =>
       `<span class="v-${v}"><b>${VERDICT_MARK[v]}</b> ${VERDICT_LABEL[v]}: ${report.counts[v]}件</span>`,
@@ -91,6 +107,8 @@ export function renderDiagnosisReport(input: DiagnosisInput, report: DiagnosisRe
     <h2>確認先マトリクス — 窓口でそのまま使える質問文</h2>
     <p class="meta">窓口ごとに質問をまとめています。このページを印刷して持っていけば、そのまま相談できます。</p>
     ${matrix}
+
+    ${renderRegionSection(regionPackId)}
 
     <h2>次のアクション</h2>
     <ol>${report.nextActions.map((a) => `<li>${esc(a)}</li>`).join('')}</ol>

@@ -11,6 +11,8 @@ import {
 } from '@hiraku/rules';
 import { renderDiagnosisReport } from '@hiraku/report';
 import ReportFrame from '@/components/ReportFrame';
+import { listRegionPacks } from '@hiraku/regionpack';
+import { useEditor } from '@/lib/store';
 
 type Partial_ = Partial<DiagnosisInput> & { setsudo: DiagnosisInput['setsudo'] };
 
@@ -175,7 +177,9 @@ export default function DiagnosePage() {
       landCategory: data.landCategory ?? 'unknown',
       haisui: data.haisui ?? 'unknown',
     };
-    setHtml(renderDiagnosisReport(input, runDiagnosis(input)));
+    const report = runDiagnosis(input);
+    useEditor.getState().setDiagnosis(input, report);
+    setHtml(renderDiagnosisReport(input, report, useEditor.getState().regionPackId));
   }
 
   if (html) return <div className="h-screen"><ReportFrame html={html} onBack={() => setHtml(null)} /></div>;
@@ -230,6 +234,19 @@ export default function DiagnosePage() {
           </button>
         </div>
         {geo && <p className="mt-2 text-xs text-slate-500">{geo}</p>}
+        <label className="mt-4 block text-sm text-slate-600">
+          地域パック(任意)
+          <select
+            value={useEditor.getState().regionPackId ?? ''}
+            onChange={(e) => useEditor.getState().setRegionPackId(e.target.value || undefined)}
+            className="mt-1 block rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">なし</option>
+            {listRegionPacks().map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </label>
       </Frame>
     );
   }

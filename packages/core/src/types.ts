@@ -131,6 +131,18 @@ export interface Project {
   diagnosis?: { input: unknown; report?: unknown };
   plans: RenovationPlan[];
   regionPackId?: string;
+  /** 拡張: 現況報告書の所見(ASSUMPTIONS参照) */
+  surveyNotes?: string;
+  /** 拡張: 確認事項ToDoのチェック状態 */
+  todoDone?: Record<string, boolean>;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 永続化の口(§3-2)。当面はローカルJSONファイル実装。将来Cloudflare D1に差し替え */
+export interface Repository {
+  list(): Promise<{ id: string; name: string; updatedAt: string }[]>;
+  get(id: string): Promise<Project | null>;
+  save(project: Project): Promise<void>;
+  remove(id: string): Promise<void>;
 }

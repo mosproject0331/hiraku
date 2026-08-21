@@ -7,8 +7,12 @@ import {
   type DamagePin,
   type Measurement,
   type Opening,
+  type Project,
+  type RenovationPlan,
   type SpaceModel,
 } from '@hiraku/core';
+import type { DiagnosisInput, DiagnosisReport } from '@hiraku/rules';
+import type { HearingPlan } from '@hiraku/llm';
 
 export type Tool = 'select' | 'wall' | 'opening' | 'delete' | 'pin';
 export type Selected = { kind: 'node' | 'wall' | 'opening' | 'pin'; id: string } | null;
@@ -35,6 +39,12 @@ interface EditorState {
   damagePins: DamagePin[];
   surveyNotes: string;
   pinCategory: DamagePin['category'];
+  projectId: string | null;
+  projectName: string;
+  regionPackId: string | undefined;
+  lastDiagnosis: { input: DiagnosisInput; report: DiagnosisReport } | null;
+  lastPlans: HearingPlan[] | null;
+  todoDone: Record<string, boolean>;
   tool: Tool;
   openingKind: Opening['kind'];
   selected: Selected;
@@ -58,6 +68,13 @@ interface EditorState {
   addPin: (x: number, y: number) => string;
   updatePin: (id: string, patch: Partial<DamagePin>) => void;
   removePin: (id: string) => void;
+  setProjectName: (s: string) => void;
+  setRegionPackId: (s: string | undefined) => void;
+  setDiagnosis: (input: DiagnosisInput, report: DiagnosisReport) => void;
+  setPlans: (p: HearingPlan[]) => void;
+  toggleTodo: (key: string) => void;
+  toProject: () => Project;
+  hydrateProject: (p: Project) => void;
 }
 
 export const useEditor = create<EditorState>((set, get) => ({
@@ -72,6 +89,12 @@ export const useEditor = create<EditorState>((set, get) => ({
   damagePins: [],
   surveyNotes: '',
   pinCategory: '雨漏り',
+  projectId: null,
+  projectName: '',
+  regionPackId: undefined,
+  lastDiagnosis: null,
+  lastPlans: null,
+  todoDone: {},
   selected: null,
   pendingNodeId: null,
   history: [],
@@ -132,6 +155,59 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
   removePin: (id) => {
     set({ damagePins: get().damagePins.filter((p) => p.id !== id), selected: null });
+  },
+  setProjectName: (projectName) => set({ projectName }),
+  setRegionPackId: (regionPackId) => set({ regionPackId }),
+  setDiagnosis: (input, report) => set({ lastDiagnosis: { input, report } }),
+  setPlans: (lastPlans) => set({ lastPlans }),
+  toggleTodo: (key) => set({ todoDone: { ...get().todoDone, [key]: !get().todoDone[key] } }),
+  toProject: () => {
+    const s = get();
+    const now = new Date().toISOString();
+    const plans: RenovationPlan[] = (s.lastPlans ?? []).map((p, i) => ({
+      id: 'plan-' + (i + 1),
+      name: p.name,
+      intent: p.intent,
+      ops: p.ops,
+      createdAt: now,
+    }));
+    return {
+      id: s.projectId ?? 'prj-' + Date.now().toString(36),
+      name: s.projectName || '無題の物件',
+      property: { address: s.lastDiagnosis?.input.address, notes: '' },
+      model: s.model,
+      measurements: s.measurements,
+      damagePins: s.damagePins,
+      diagnosis: s.lastDiagnosis ?? undefined,
+      plans,
+      regionPackId: s.regionPackId,
+      surveyNotes: s.surveyNotes,
+      todoDone: s.todoDone,
+      createdAt: now,
+      updatedAt: now,
+    };
+  },
+  hydrateProject: (p) => {
+    const model = p.model ? structuredClone(p.model) : emptyModel();
+    refreshRooms(model);
+    set({
+      projectId: p.id,
+      projectName: p.name,
+      model,
+      measurements: p.measurements ?? [],
+      damagePins: p.damagePins ?? [],
+      surveyNotes: p.surveyNotes ?? '',
+      regionPackId: p.regionPackId,
+      lastDiagnosis: (p.diagnosis as { input: DiagnosisInput; report: DiagnosisReport } | undefined) ?? null,
+      lastPlans: p.plans?.length
+        ? p.plans.map((x) => ({ name: x.name, intent: x.intent, ops: x.ops }))
+        : null,
+      todoDone: p.todoDone ?? {},
+      history: [],
+      future: [],
+      selected: null,
+      pendingNodeId: null,
+    });
   },
   undo: () => {
     const { history, future, model } = get();

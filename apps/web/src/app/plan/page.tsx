@@ -152,7 +152,10 @@ export default function PlanPage() {
       const turn = (await res.json()) as { reply?: string; plans?: HearingPlan[]; error?: string };
       if (turn.error) throw new Error(turn.error);
       if (turn.reply) setMessages((ms) => [...ms, { role: 'assistant', text: turn.reply! }]);
-      if (turn.plans) setPlans(turn.plans);
+      if (turn.plans) {
+        setPlans(turn.plans);
+        useEditor.getState().setPlans(turn.plans);
+      }
     } catch (e) {
       setMessages((ms) => [...ms, { role: 'assistant', text: 'エラーが起きました: ' + (e instanceof Error ? e.message : '') }]);
     } finally {
