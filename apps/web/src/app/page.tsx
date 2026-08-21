@@ -5,13 +5,13 @@ const CARDS = [
     href: '/wizard',
     title: 'モードA: これから物件を探す',
     body: 'やりたい用途から「探すべき物件の条件」と「内見チェックリスト」を逆引きします。',
-    ready: false,
+    ready: true,
   },
   {
     href: '/diagnose',
     title: 'モードB: 候補物件がある',
     body: '物件情報を入れると、法規制の論点・確認先・窓口で使える質問文を整理します。',
-    ready: false,
+    ready: true,
   },
   {
     href: '/editor',
