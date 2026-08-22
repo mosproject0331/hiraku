@@ -20,6 +20,7 @@ import {
 import type { DesiredUse, DiagnosisInput, DiagnosisReport } from '@hiraku/rules';
 import type { HearingPlan } from '@hiraku/llm';
 import type { PriceBook } from '@hiraku/estimate';
+import type { QuoteDoc } from '@hiraku/report';
 
 export type Tool = 'select' | 'wall' | 'opening' | 'delete' | 'pin' | 'backdrop' | 'calibrate';
 export type Selected = { kind: 'node' | 'wall' | 'opening' | 'pin'; id: string } | null;
@@ -60,6 +61,8 @@ interface EditorState {
   customChecks: CustomCheck[];
   /** 内見チェックで使う用途。診断より先に見に行くこともあるので単独で持つ */
   checkUse: DesiredUse | null;
+  /** 御見積書。案件ごとに1通を持ち回る */
+  quote: QuoteDoc | null;
   priceBook: PriceBook;
   tool: Tool;
   openingKind: Opening['kind'];
@@ -101,6 +104,8 @@ interface EditorState {
   removeCustomCheck: (id: string) => void;
   clearChecklist: () => void;
   setCheckUse: (u: DesiredUse | null) => void;
+  setQuote: (q: QuoteDoc | null) => void;
+  patchQuote: (p: Partial<QuoteDoc>) => void;
   setPriceBook: (b: PriceBook) => void;
   toProject: () => Project;
   hydrateProject: (p: Project) => void;
@@ -130,6 +135,7 @@ export const useEditor = create<EditorState>()(
   checklist: {},
   customChecks: [],
   checkUse: null,
+  quote: null,
   priceBook: {},
   selected: null,
   pendingNodeId: null,
@@ -286,6 +292,12 @@ export const useEditor = create<EditorState>()(
   },
   clearChecklist: () => set({ checklist: {}, customChecks: [] }),
   setCheckUse: (checkUse) => set({ checkUse }),
+  setQuote: (quote) => set({ quote }),
+  patchQuote: (patch) => {
+    const cur = get().quote;
+    if (!cur) return;
+    set({ quote: { ...cur, ...patch } });
+  },
   setPriceBook: (priceBook) => set({ priceBook }),
   toProject: () => {
     const s = get();
@@ -311,6 +323,7 @@ export const useEditor = create<EditorState>()(
       todoDone: s.todoDone,
       checklist: s.checklist,
       customChecks: s.customChecks,
+      quote: s.quote ?? undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -333,6 +346,7 @@ export const useEditor = create<EditorState>()(
       todoDone: p.todoDone ?? {},
       checklist: p.checklist ?? {},
       customChecks: p.customChecks ?? [],
+      quote: (p.quote as QuoteDoc | undefined) ?? null,
       history: [],
       future: [],
       selected: null,
@@ -380,6 +394,7 @@ export const useEditor = create<EditorState>()(
         checklist: s.checklist,
         customChecks: s.customChecks,
         checkUse: s.checkUse,
+        quote: s.quote,
         priceBook: s.priceBook,
       }),
     },

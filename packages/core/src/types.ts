@@ -177,6 +177,8 @@ export interface Project {
   checklist?: Record<string, CheckEntry>;
   /** 拡張: 現場で足したチェック項目 */
   customChecks?: CustomCheck[];
+  /** 拡張: 御見積書。型は packages/report 側なので unknown で預かる */
+  quote?: unknown;
   createdAt: string;
   updatedAt: string;
 }
