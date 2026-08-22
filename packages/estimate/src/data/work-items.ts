@@ -67,6 +67,14 @@ export interface WorkItem {
 const P = (low: number, high: number, basis: PriceBasis = 'material') =>
   ({ low, high, basis, source: '一般的なレンジ（未検証）', verified: false });
 
+/**
+ * 出どころを確かめた単価。
+ * 実際に売られている値段を、店名と時点つきで持つ。
+ * 「確かめた」とは、誰でも同じ場所を見に行けるという意味。
+ */
+const V = (low: number, high: number, source: string, asOf: string, basis: PriceBasis = 'material') =>
+  ({ low, high, basis, source, asOf, verified: true });
+
 /** 工事項目マスタ(§7)。単価はすべてプレースホルダのレンジ(参考値・要検証) */
 export const WORK_ITEMS: WorkItem[] = [
   // 解体
@@ -85,8 +93,9 @@ export const WORK_ITEMS: WorkItem[] = [
     steps: ['レーザーで水平を出す', '大引・根太を組む', '断熱材を入れるならこの段階で', '合板を張る'] },
   { id: 'carp-neda-hoshu', category: '木工事', name: '根太・大引の部分補修', unit: 'm', materialUnitPrice: P(1500, 4000), diyClass: 'diy_hard',
     steps: ['腐朽範囲を特定する', '同寸の材に差し替える', '束の沈みは束で調整する'] },
-  { id: 'carp-partition', category: '木工事', name: '間仕切り壁の新設(下地+ボード)', unit: '㎡', materialUnitPrice: P(3000, 7000), diyClass: 'diy_hard',
-    steps: ['位置を墨出しする', '天地の桟と間柱を組む', '石膏ボードを両面に張る', 'パテ処理する'] },
+  { id: 'carp-partition', category: '木工事', name: '間仕切り壁の新設(下地+ボード)', unit: '㎡', materialUnitPrice: V(1800, 6000, 'せっこうボード12.5mm 798円/枚＝482円/㎡（カインズ）×両面＋下地材。公表価格は1,950円/枚＝1,177円/㎡（積算資料公表価格版2026年9月号）', '2026-08'), diyClass: 'diy_hard',
+    steps: ['位置を墨出しする', '天地の桟と間柱を組む', '石膏ボードを両面に張る', 'パテ処理する'] ,
+    marketNote: 'ホームセンター実売と公表価格で2.4倍の開きがある。どちらで買うかで金額が変わる'},
   { id: 'carp-opening', category: '木工事', name: '開口部の新設(建具枠まで)', unit: '箇所', materialUnitPrice: P(15000, 60000, 'installed'), diyClass: 'pro_recommended',
     steps: ['構造上問題ない壁か専門家に確認する', 'まぐさ・柱の補強を入れる', '枠を取り付ける'],
     marketNote: '構造の確認が前提。壁の種類で費用が大きく変わる' },
@@ -97,15 +106,17 @@ export const WORK_ITEMS: WorkItem[] = [
   { id: 'carp-tategu-chosei', category: '木工事', name: '建具の調整・修理', unit: '箇所', materialUnitPrice: P(500, 5000, 'service'), diyClass: 'diy',
     steps: ['敷居・鴨居の擦れを確認する', '戸車交換・鉋がけで調整する'] },
   // 内装
-  { id: 'flooring', category: '内装', name: 'フローリング張り', unit: '㎡', materialUnitPrice: P(3000, 8000), diyClass: 'diy',
-    steps: ['下地の水平・強度を確認する', '割付を決める', 'サネをはめながら張る', '巾木を回す'] },
-  { id: 'cushion_floor', category: '内装', name: 'クッションフロア張り', unit: '㎡', materialUnitPrice: P(1500, 3500), diyClass: 'diy',
-    steps: ['下地を平滑にする', '仮敷きして切り込む', '接着剤で張る'] },
+  { id: 'flooring', category: '内装', name: 'フローリング張り', unit: '㎡', materialUnitPrice: V(2500, 12000, '複合の量産品を下限、突板・無垢を上限。無垢チークは16,800円/㎡（積算資料公表価格版2026年9月号）', '2026-08'), diyClass: 'diy',
+    steps: ['下地の水平・強度を確認する', '割付を決める', 'サネをはめながら張る', '巾木を回す'] ,
+    marketNote: '幅・厚み・樹種で何倍も動く。無垢は上限を超えることがある'},
+  { id: 'cushion_floor', category: '内装', name: 'クッションフロア張り', unit: '㎡', materialUnitPrice: V(800, 2500, 'DIYショップRESTA 切売り 1,408円/m(幅182cm)＝774円/㎡ を下限に', '2026-08'), diyClass: 'diy',
+    steps: ['下地を平滑にする', '仮敷きして切り込む', '接着剤で張る'] ,
+    marketNote: '下限は量産品の切売り。柄物・厚手・土足対応は上がる'},
   { id: 'tatami_omote', category: '内装', name: '畳の表替え', unit: '枚', materialUnitPrice: P(5000, 15000, 'installed'), diyClass: 'pro_recommended',
     steps: ['畳店に枚数を伝えて見積をとる', '朝出し夕方納品が一般的'] },
-  { id: 'cloth', category: '内装', name: '壁クロス張り', unit: '㎡', materialUnitPrice: P(1000, 2500), diyClass: 'diy_hard',
+  { id: 'cloth', category: '内装', name: '壁クロス張り', unit: '㎡', materialUnitPrice: V(400, 1800, '生のり付き壁紙 362〜490円/m(幅92cm)＝394〜533円/㎡（RESTA・かべがみ道場）', '2026-08'), diyClass: 'diy_hard',
     steps: ['下地パテ処理する', '糊付きクロスを張る', 'ジョイントをカットする'] },
-  { id: 'shikkui_diy', category: '内装', name: '漆喰・珪藻土塗り(DIY向け製品)', unit: '㎡', materialUnitPrice: P(1500, 4000), diyClass: 'diy',
+  { id: 'shikkui_diy', category: '内装', name: '漆喰・珪藻土塗り(DIY向け製品)', unit: '㎡', materialUnitPrice: V(1900, 4200, '練済み漆喰18kg 15,180円・1mm厚で約16㎡（日本プラスター）＝2回塗りで約1,900円/㎡', '2026-08'), diyClass: 'diy',
     steps: ['養生する', 'シーラーを塗る', 'コテやローラーで2回塗りする'],
     marketNote: 'ワークショップ向きの定番作業' },
   { id: 'paint', category: '内装', name: '室内塗装(壁・木部)', unit: '㎡', materialUnitPrice: P(500, 1500), diyClass: 'diy',
@@ -146,7 +157,7 @@ export const WORK_ITEMS: WorkItem[] = [
   { id: 'switch', category: '電気', name: 'スイッチ交換', unit: '箇所', materialUnitPrice: P(1000, 3000, 'installed'), diyClass: 'licensed', requiredLicense: '電気工事士',
     steps: ['電気工事士に依頼する(配線に触る作業のため)'] },
   // 断熱
-  { id: 'insulate-floor', category: '断熱', name: '床下断熱材の充填', unit: '㎡', materialUnitPrice: P(2000, 4500), diyClass: 'diy_hard',
+  { id: 'insulate-floor', category: '断熱', name: '床下断熱材の充填', unit: '㎡', materialUnitPrice: V(1500, 4000, '押出法ポリスチレン30mm 14,839円/6枚(910×1820)＝1,493円/㎡', '2026-08'), diyClass: 'diy_hard',
     steps: ['床下に入れるか点検口を確認する', '大引間に断熱材をはめる', '受け材で落下を防ぐ'] },
   { id: 'insulate-ceiling', category: '断熱', name: '天井断熱材の敷き込み', unit: '㎡', materialUnitPrice: P(1500, 3500), diyClass: 'diy_hard',
     steps: ['小屋裏に上がれるか確認する', '配線を潰さないように敷く', '防じんマスク必須'] },

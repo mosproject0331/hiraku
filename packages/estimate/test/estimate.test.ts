@@ -11,12 +11,28 @@ const model = load;
 const firstRoomId = () => detectRooms(load().levels[0]!)[0]!.id;
 
 describe('工事項目マスタ', () => {
-  it('40項目・単価はすべてverified:false', () => {
+  it('どの単価にも出どころがあり、確かめたものには時点が付く', () => {
     expect(WORK_ITEMS.length).toBeGreaterThanOrEqual(38);
     for (const w of WORK_ITEMS) {
-      expect(w.materialUnitPrice.verified).toBe(false);
-      expect(w.materialUnitPrice.low).toBeLessThanOrEqual(w.materialUnitPrice.high);
+      const p = w.materialUnitPrice;
+      expect(p.source, w.id).toBeTruthy();
+      expect(p.low, w.id).toBeLessThanOrEqual(p.high);
       expect(w.steps.length).toBeGreaterThanOrEqual(1);
+      if (p.verified) {
+        // 確かめたと言うからには、いつ時点かが要る
+        expect(p.asOf, w.id).toMatch(/^\d{4}-\d{2}$/);
+        expect(p.source, w.id).not.toContain('未検証');
+      } else {
+        expect(p.source, w.id).toContain('未検証');
+      }
+    }
+  });
+
+  it('実売を調べた項目は、確かめた単価として入っている', () => {
+    const checked = WORK_ITEMS.filter((w) => w.materialUnitPrice.verified).map((w) => w.id);
+    // 調べた6項目は必ず入っていること（減ったら気づけるように）
+    for (const id of ['flooring', 'cushion_floor', 'cloth', 'shikkui_diy', 'insulate-floor', 'carp-partition']) {
+      expect(checked, id).toContain(id);
     }
   });
 });
@@ -99,8 +115,10 @@ describe('単価帳（CSV取り込み）', () => {
     const model = load();
     const rooms = detectRooms(model.levels[0]!);
     const r = rooms.find((x) => x.name === '和室A')!;
-    const base = estimatePlan(model, [{ op: 'change_floor', roomId: r.id, finishId: 'flooring' }]);
+    // まだ調べていない項目で試す（調べ済みの項目は最初から verified のため）
+    const base = estimatePlan(model, [{ op: 'change_ceiling', roomId: r.id, finishId: 'ceiling_paint' }]);
     expect(base.lines[0]!.verified).toBe(false);
+    expect(base.lines[0]!.priceSource).toContain('未検証');
 
     const { book } = parsePriceCsv('flooring,床,10000,10000,自社積算');
     const withBook = estimatePlan(model, [{ op: 'change_floor', roomId: r.id, finishId: 'flooring' }], book);
@@ -110,12 +128,17 @@ describe('単価帳（CSV取り込み）', () => {
 });
 
 describe('単価の出どころ', () => {
-  it('初期値はすべて未検証で、出どころが書いてある', () => {
+  it('どの単価にも、何の値段かと出どころが書いてある', () => {
     for (const w of WORK_ITEMS) {
-      expect(w.materialUnitPrice.verified).toBe(false);
-      expect(w.materialUnitPrice.source).toBeTruthy();
+      expect(w.materialUnitPrice.source, w.id).toBeTruthy();
       expect(['material', 'equipment', 'installed', 'service']).toContain(w.materialUnitPrice.basis);
     }
+  });
+
+  it('調べていない項目は、調べていないと分かる', () => {
+    const unchecked = WORK_ITEMS.filter((w) => !w.materialUnitPrice.verified);
+    expect(unchecked.length).toBeGreaterThan(0);
+    for (const w of unchecked) expect(w.materialUnitPrice.source).toContain('未検証');
   });
 
   it('材料費でないものを材料費と呼ばない', () => {
@@ -165,5 +188,52 @@ describe('単価の出どころ', () => {
     const round = parsePriceCsv(priceTemplateCsv(book));
     expect(round.errors).toEqual([]);
     expect(round.book.paint!.low).toBe(700);
+  });
+});
+
+/**
+ * 仮説の検証：
+ * 「この道具の出す材料費は、世の中の相場と桁が合っている」
+ *
+ * 材工込みの相場は公開されている（例：フローリング張替え 6畳で6万〜18万円）。
+ * 材料はそのうち3〜5割というのが一般的な内訳。
+ * ここから外れたら、単価かどこかの計算が狂っているので気づけるようにする。
+ */
+describe('相場との突き合わせ', () => {
+  it('6畳のフローリング張替えが、材工相場の材料分に収まる', () => {
+    const model = load();
+    const rooms = detectRooms(model.levels[0]!);
+    // 12.42㎡（およそ7.5畳）の和室で測り、6畳あたりに直す
+    const r = rooms.find((x) => x.name === '和室A')!;
+    const est = estimatePlan(model, [{ op: 'change_floor', roomId: r.id, finishId: 'flooring' }]);
+    const perM2Low = est.diyMaterial.lowYen / r.areaM2;
+    const perM2High = est.diyMaterial.highYen / r.areaM2;
+
+    // 6畳＝9.94㎡ に直したときの材料費
+    const six = { low: perM2Low * 9.94, high: perM2High * 9.94 };
+    // 材工相場 6万〜18万円の、材料分（3〜5割）＝1.8万〜9万円
+    const marketMaterialLow = 60000 * 0.3;
+    const marketMaterialHigh = 180000 * 0.5;
+
+    // 下限は、相場の材料分の下限を大きく超えていないこと
+    expect(six.low).toBeLessThan(marketMaterialHigh);
+    expect(six.low).toBeGreaterThan(marketMaterialLow * 0.6);
+    // 上限は、無垢材まで含むので相場を超えてよいが、桁は外さない
+    expect(six.high).toBeLessThan(marketMaterialHigh * 3);
+  });
+
+  it('クロスと漆喰の材料費が、実売から出した幅に収まる', () => {
+    const model = load();
+    const rooms = detectRooms(model.levels[0]!);
+    const r = rooms.find((x) => x.name === '和室A')!;
+    for (const [finishId, low, high] of [
+      ['cloth', 350, 2000],
+      ['shikkui_diy', 1800, 4500],
+    ] as const) {
+      const est = estimatePlan(model, [{ op: 'change_wall_finish', roomId: r.id, finishId }]);
+      const wallM2 = est.lines[0]!.qty;
+      expect(est.diyMaterial.lowYen / wallM2, finishId).toBeGreaterThan(low * 0.9);
+      expect(est.diyMaterial.highYen / wallM2, finishId).toBeLessThan(high * 1.1);
+    }
   });
 });
