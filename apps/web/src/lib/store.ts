@@ -24,10 +24,20 @@ import {
   type RenovationPlan,
   type SpaceModel,
 } from '@hiraku/core';
-import type { DesiredUse, DiagnosisInput, DiagnosisReport } from '@hiraku/rules';
+import type { DesiredUse, DiagnosisInput, DiagnosisReport, Verdict } from '@hiraku/rules';
 import type { HearingPlan } from '@hiraku/llm';
 import type { PriceBook } from '@hiraku/estimate';
 import type { QuoteDoc } from '@hiraku/report';
+import {
+  applyAnswer,
+  buildProposals,
+  opsOf,
+  QUESTIONS,
+  type Answer,
+  type HearingProfile,
+  type Proposal,
+  type SiteFacts,
+} from '@hiraku/proposal';
 
 export type Tool = 'select' | 'wall' | 'numeric' | 'opening' | 'delete' | 'pin' | 'backdrop' | 'calibrate';
 export type Selected = { kind: 'node' | 'wall' | 'opening' | 'pin'; id: string } | null;
@@ -46,6 +56,36 @@ export function emptyModel(): SpaceModel {
 
 function refreshRooms(m: SpaceModel): void {
   for (const lv of m.levels) lv.rooms = detectRooms(lv);
+}
+
+/** 内見・劣化ピン・診断から、建物側の条件を集める */
+function collectSiteFacts(s: EditorState): SiteFacts {
+  const troubles = [
+    ...s.damagePins.map((p) => ({
+      category: p.category,
+      where: `図面のピン(${Math.round(p.x / 100) / 10}, ${Math.round(p.y / 100) / 10}m)`,
+      memo: p.memo,
+      severity: 'bad' as const,
+    })),
+    ...Object.entries(s.checklist)
+      .filter(([, e]) => e.state !== 'ok')
+      .map(([label, e]) => ({
+        category: label,
+        where: '内見チェック',
+        memo: e.memo,
+        severity: e.state as 'watch' | 'bad',
+      })),
+  ];
+  const report = s.lastDiagnosis?.report;
+  // いちばん厳しい判定を、その物件の当たりとして持つ
+  const order: Verdict[] = ['ng', 'hard', 'conditional', 'unknown', 'ok'];
+  const verdict = report ? order.find((v) => (report.counts[v] ?? 0) > 0) : undefined;
+  return {
+    troubles,
+    permits: report?.nextActions ?? [],
+    verdict: report ? (report.unknowns.length ? 'unknown' : verdict) : undefined,
+    floorAreaM2: s.lastDiagnosis?.input.floorAreaM2 ?? undefined,
+  };
 }
 
 /** 作図の結果を、履歴を積んで反映する */
@@ -83,6 +123,10 @@ interface EditorState {
   checkUse: DesiredUse | null;
   /** 御見積書。案件ごとに1通を持ち回る */
   quote: QuoteDoc | null;
+  /** ヒアリングで集めた、その人の側の条件 */
+  hearing: HearingProfile;
+  /** 組み上がった改修案 */
+  proposals: Proposal[];
   priceBook: PriceBook;
   tool: Tool;
   openingKind: Opening['kind'];
@@ -126,6 +170,12 @@ interface EditorState {
   setCheckUse: (u: DesiredUse | null) => void;
   setQuote: (q: QuoteDoc | null) => void;
   patchQuote: (p: Partial<QuoteDoc>) => void;
+  /** ヒアリングの答えを1つ入れる */
+  answerHearing: (questionId: string, raw: Answer) => void;
+  /** ヒアリングをやり直す */
+  resetHearing: () => void;
+  /** いまの図面・内見・診断から改修案を組み直す */
+  makeProposals: () => void;
   /** 起点から、長さと向き(度)を打ち込んで壁をのばす */
   drawExtend: (lengthMm: number, headingDeg: number) => void;
   /** 起点から、幅×奥行の長方形を置く */
@@ -170,6 +220,8 @@ export const useEditor = create<EditorState>()(
   customChecks: [],
   checkUse: null,
   quote: null,
+  hearing: {},
+  proposals: [],
   priceBook: {},
   selected: null,
   pendingNodeId: null,
@@ -327,6 +379,21 @@ export const useEditor = create<EditorState>()(
   clearChecklist: () => set({ checklist: {}, customChecks: [] }),
   setCheckUse: (checkUse) => set({ checkUse }),
   setQuote: (quote) => set({ quote }),
+  answerHearing: (questionId, raw) => {
+    const q = QUESTIONS.find((x) => x.id === questionId);
+    if (!q) return;
+    set({ hearing: applyAnswer(get().hearing, q, raw) });
+  },
+  resetHearing: () => set({ hearing: {}, proposals: [], lastPlans: null }),
+  makeProposals: () => {
+    const s = get();
+    const proposals = buildProposals(s.model, s.hearing, collectSiteFacts(s));
+    set({
+      proposals,
+      // 見積の取り込みは従来の形も使うので、そちらにも入れておく
+      lastPlans: proposals.map((p) => ({ name: p.name, intent: p.line, ops: opsOf(p) })),
+    });
+  },
   patchQuote: (patch) => {
     const cur = get().quote;
     if (!cur) return;
@@ -474,6 +541,8 @@ export const useEditor = create<EditorState>()(
         customChecks: s.customChecks,
         checkUse: s.checkUse,
         quote: s.quote,
+        hearing: s.hearing,
+        proposals: s.proposals,
         priceBook: s.priceBook,
       }),
     },

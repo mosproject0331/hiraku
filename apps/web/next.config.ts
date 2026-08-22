@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
     '@hiraku/llm',
     '@hiraku/regionpack',
     '@hiraku/knowledge',
+    '@hiraku/proposal',
   ],
   // 静的公開（GitHub Pages など）: サーバー不要。保存はすべてブラウザの中
   ...(isStatic

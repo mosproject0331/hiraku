@@ -1,234 +1,413 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  applyOps,
-  detectRooms,
-  serialize,
-  type RenovationOp,
-  type SpaceModel,
-} from '@hiraku/core';
+import { applyOps, detectRooms, type RenovationOp, type SpaceModel } from '@hiraku/core';
 import { DIY_CLASS_LABEL, estimatePlan, type PlanEstimate } from '@hiraku/estimate';
-import type { HearingPlan } from '@hiraku/llm';
-import { askHearing } from '@/lib/ai';
+import {
+  canPropose, HANDS_LABEL, intakeProgress, nextQuestion, opsOf, QUESTIONS, roomNames, STAGE_LABEL,
+  type Proposal, type Question, type Stage, type WorkStep,
+} from '@hiraku/proposal';
 import PlanPerspective from '@/components/PlanPerspective';
+import { jp } from '@/components/Jp';
 import { useEditor } from '@/lib/store';
 
-function yen(n: number): string {
-  return n.toLocaleString('ja-JP');
-}
+/**
+ * 改修の相談。
+ *
+ * 聞くことと、返すこと。どちらも順番が要る。
+ * 問いは一度にひとつだけ出し、なぜ聞くのかを添える。
+ * 案は「安い・普通・高い」ではなく、三つの構えとして並べ、
+ * 段（開けるために要る／開けた日に効く／あとからでいい）で組む。
+ */
 
-function opLabel(op: RenovationOp, model: SpaceModel): string {
+const KANJI = ['壱', '弐', '参', '四', '伍'];
+const STAGE_KANJI: Record<Stage, string> = { 1: '一', 2: '二', 3: '三' };
+const yen = (n: number) => n.toLocaleString('ja-JP');
+
+function opLabel(op: RenovationOp, model: SpaceModel, names?: Map<string, string>): string {
   const level = model.levels[0]!;
   const rooms = detectRooms(level);
-  const roomName = (id: string) => rooms.find((r) => r.id === id)?.name ?? id;
+  const roomName = (id: string) => names?.get(id) ?? rooms.find((r) => r.id === id)?.name ?? id;
   switch (op.op) {
-    case 'remove_partition': return '間仕切り壁を撤去する';
-    case 'add_partition': return '間仕切り壁を新設する';
-    case 'add_opening': return '開口部を新設する';
-    case 'close_opening': return '開口部をふさぐ';
-    case 'change_floor': return `${roomName(op.roomId)}の床を替える`;
-    case 'change_wall_finish': return `${roomName(op.roomId)}の壁を仕上げ直す`;
-    case 'change_ceiling': return `${roomName(op.roomId)}の天井を仕上げ直す`;
-    case 'add_water_unit': {
-      const u = { kitchen: 'キッチン', toilet: 'トイレ', bath: '風呂', sink: '洗面' }[op.unit];
-      return `${roomName(op.roomId)}に${u}を新設する`;
-    }
-    case 'insulate': {
-      const t = { floor: '床下断熱', ceiling: '天井断熱', window_inner: '内窓' }[op.target];
-      return `${t}を入れる`;
-    }
-    case 'electrical': {
-      const w = { add_outlet: 'コンセント増設', add_circuit: '専用回路増設', lighting_diy: '照明器具の取付' }[op.work];
-      return `${w} × ${op.count}`;
-    }
+    case 'remove_partition': return '間仕切り壁を撤去';
+    case 'add_partition': return '間仕切り壁を新設';
+    case 'add_opening': return '開口部を新設';
+    case 'close_opening': return '開口部を塞ぐ';
+    case 'change_floor': return `${roomName(op.roomId)}の床`;
+    case 'change_wall_finish': return `${roomName(op.roomId)}の壁`;
+    case 'change_ceiling': return `${roomName(op.roomId)}の天井`;
+    case 'add_water_unit': return `${roomName(op.roomId)}に${{ kitchen: 'キッチン', toilet: 'トイレ', bath: '浴室', sink: '洗面' }[op.unit]}`;
+    case 'insulate': return `${{ floor: '床下', ceiling: '天井', window_inner: '内窓' }[op.target]}の断熱`;
+    case 'electrical': return `${{ add_outlet: 'コンセント', add_circuit: '専用回路', lighting_diy: '照明' }[op.work]} ×${op.count}`;
   }
 }
 
-function PlanCard({ plan, model }: { plan: HearingPlan; model: SpaceModel }) {
-  const router = useRouter();
-  const priceBook = useEditor((s) => s.priceBook);
-  // 概算の計算は軽くない。間取り・案・単価が変わったときだけやり直す
-  const est: PlanEstimate = useMemo(
-    () => estimatePlan(model, plan.ops, priceBook),
-    [model, plan.ops, priceBook],
-  );
-  const warnings = est.lines.filter((l) => l.structuralWarning);
-  const unverified = est.lines.some((l) => !l.verified);
+/* ───────────────── ヒアリング ───────────────── */
+
+function Intake() {
+  const hearing = useEditor((s) => s.hearing);
+  const answer = useEditor((s) => s.answerHearing);
+  const make = useEditor((s) => s.makeProposals);
+  const [draft, setDraft] = useState('');
+  const [skipped, setSkipped] = useState<string[]>([]);
+
+  const q = useMemo(() => {
+    let next = nextQuestion(hearing);
+    while (next && skipped.includes(next.id)) {
+      const after = QUESTIONS.slice(QUESTIONS.findIndex((x) => x.id === next!.id) + 1).find(
+        (x) => !skipped.includes(x.id) && hearing[x.id] === undefined,
+      );
+      next = after ?? null;
+    }
+    return next;
+  }, [hearing, skipped]);
+
+  const prog = intakeProgress(hearing);
+  const ready = canPropose(hearing);
+
+  const submit = (raw: string | number) => {
+    if (!q) return;
+    answer(q.id, raw);
+    setDraft('');
+  };
+
+  const answered = QUESTIONS.filter((x) => hearing[x.id] !== undefined && String(hearing[x.id] ?? '').length > 0);
+
   return (
-    <div className="rounded-lg border border-slate-300 bg-white p-4">
-      <div className="text-lg font-bold">{plan.name}</div>
-      <p className="mt-1 text-sm text-slate-600">{plan.intent}</p>
-
-      <PlanPerspective
-        model={model}
-        ops={plan.ops}
-        planName={plan.name}
-        desiredUse={useEditor.getState().lastDiagnosis?.input.desiredUse}
-      />
-
-      <ul className="mt-3 list-disc pl-5 text-sm">
-        {plan.ops.map((op, i) => (
-          <li key={i}>{opLabel(op, model)}</li>
-        ))}
-      </ul>
-
-      {warnings.length > 0 && (
-        <div className="mt-3 rounded bg-red-50 px-3 py-2 text-xs text-red-700">
-          <b>構造確認要:</b> この案には耐力壁の疑いがある壁への工事が含まれます。撤去・開口の可否は現地で専門家の確認が必要です。
+    <div className="intake">
+      <header className="intake-head">
+        <p className="intake-kicker">改修の相談</p>
+        <h1 className="intake-title">{jp('この場を、何のための場にしますか。')}</h1>
+        <p className="intake-sub">
+          聞くのは{QUESTIONS.length}つ。答えたぶんだけ、案の精度が上がります。
+          分からないものは飛ばして構いません。
+        </p>
+        <div className="intake-bar">
+          <span style={{ width: `${Math.round((prog.answered / prog.total) * 100)}%` }} />
         </div>
+      </header>
+
+      {q ? (
+        <section className="ask">
+          <p className="ask-no">
+            問 <b>{prog.answered + 1}</b> / {prog.total}
+          </p>
+          <h2 className="ask-q">{jp(q.ask)}</h2>
+          <div className="ask-why">
+            <span>なぜ聞くのか</span>
+            <p>{q.why}</p>
+          </div>
+
+          <AnswerField q={q} draft={draft} setDraft={setDraft} onSubmit={submit} />
+
+          <div className="ask-actions">
+            {q.optional && (
+              <button className="hb-btn hb-outline" onClick={() => setSkipped((s) => [...s, q.id])}>
+                この問いは飛ばす
+              </button>
+            )}
+            {ready && (
+              <button className="hb-btn hb-dark" onClick={make}>
+                ここまでで案を出す
+              </button>
+            )}
+          </div>
+        </section>
+      ) : (
+        <section className="ask">
+          <h2 className="ask-q">{jp('聞くことは、ひととおり伺いました。')}</h2>
+          <p className="ask-why-plain">図面・内見の記録・法規の診断と合わせて、三つの構えで案を組みます。</p>
+          <button className="hb-btn hb-cta ask-go" onClick={make}>案を組む</button>
+        </section>
       )}
 
-      <div className="mt-3 grid gap-1 rounded bg-slate-50 p-3 text-sm">
-        <div className="flex justify-between">
-          <span>(a) DIY材料費{unverified && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-800">参考値・要検証</span>}</span>
-          <b>{yen(est.diyMaterial.lowYen)}〜{yen(est.diyMaterial.highYen)}円</b>
-        </div>
-        <div className="flex justify-between">
-          <span>(b) 専門・有資格工事の材料費{unverified && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-800">参考値・要検証</span>}</span>
-          <b>{yen(est.proMaterial.lowYen)}〜{yen(est.proMaterial.highYen)}円</b>
-        </div>
-        <div className="text-xs text-slate-500">(b)の施工費は含みません(要見積)。総額の一本値は出しません。</div>
-        {est.permitFlags.length > 0 && (
-          <div className="mt-1 text-xs text-slate-600">
-            <b>(c) 資格・届出:</b> {est.permitFlags.join(' / ')}
-          </div>
-        )}
+      {answered.length > 0 && (
+        <section className="answered">
+          <h3>答えたこと</h3>
+          <dl>
+            {answered.map((a) => (
+              <div key={a.id}>
+                <dt>{a.ask.replace(/[。？?]$/, '')}</dt>
+                <dd>
+                  {formatAnswer(a, hearing[a.id])}
+                  <button
+                    onClick={() => {
+                      useEditor.setState({ hearing: { ...hearing, [a.id]: undefined } });
+                      setSkipped((s) => s.filter((x) => x !== a.id));
+                    }}
+                  >
+                    直す
+                  </button>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function formatAnswer(q: Question, v: unknown): string {
+  if (Array.isArray(v)) return v.join('・');
+  if (q.options) return q.options.find((o) => o.value === String(v))?.label ?? String(v);
+  if (typeof v === 'number') return v.toLocaleString('ja-JP') + (q.unit ?? '');
+  if (typeof v === 'boolean') return v ? '住みながら' : '住まない';
+  return String(v ?? '');
+}
+
+function AnswerField({
+  q, draft, setDraft, onSubmit,
+}: {
+  q: Question; draft: string; setDraft: (v: string) => void; onSubmit: (v: string | number) => void;
+}) {
+  if (q.kind === 'choice' || q.kind === 'scale') {
+    return (
+      <div className="ask-choices">
+        {q.options?.map((o) => (
+          <button key={o.value} className="choice" onClick={() => onSubmit(o.value)}>
+            <b>{o.label}</b>
+            {o.hint && <em>{o.hint}</em>}
+          </button>
+        ))}
       </div>
-
-      <details className="mt-3 text-sm">
-        <summary className="cursor-pointer text-slate-600">工事項目の内訳と手順({est.lines.length}件)</summary>
-        <div className="mt-2 space-y-2">
-          {est.lines.map((l, i) => (
-            <div key={i} className="rounded border border-slate-200 p-2">
-              <div className="flex items-center justify-between">
-                <b>{l.name}</b>
-                <span className="text-xs text-slate-500">{l.qty}{l.unit} / {yen(l.lowYen)}〜{yen(l.highYen)}円</span>
-              </div>
-              <div className="mt-0.5 text-xs">
-                <span className={
-                  'rounded px-1.5 py-0.5 ' +
-                  (l.diyClass === 'diy' ? 'bg-green-100 text-green-800'
-                    : l.diyClass === 'diy_hard' ? 'bg-lime-100 text-lime-800'
-                    : l.diyClass === 'licensed' ? 'bg-red-100 text-red-800'
-                    : 'bg-slate-200 text-slate-700')
-                }>
-                  {DIY_CLASS_LABEL[l.diyClass]}
-                </span>
-                {l.requiredLicense && <span className="ml-2 text-red-700">{l.requiredLicense}</span>}
-                {l.note && <span className="ml-2 text-slate-500">{l.note}</span>}
-              </div>
-              <ol className="mt-1 list-decimal pl-5 text-xs text-slate-600">
-                {l.steps.map((s, j) => <li key={j}>{s}</li>)}
-              </ol>
-            </div>
-          ))}
-        </div>
-      </details>
-
-      <button
-        onClick={() => {
-          const next = applyOps(model, plan.ops);
-          useEditor.getState().loadModel(next);
-          router.push('/app/editor');
+    );
+  }
+  return (
+    <div className="ask-input">
+      <input
+        type={q.kind === 'number' ? 'number' : 'text'}
+        inputMode={q.kind === 'number' ? 'numeric' : undefined}
+        value={draft}
+        placeholder={q.placeholder ?? ''}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && draft.trim()) onSubmit(q.kind === 'number' ? Number(draft) : draft);
         }}
-        className="mt-3 w-full rounded border border-slate-300 py-2 text-sm hover:bg-slate-50"
+      />
+      {q.unit && <span className="ask-unit">{q.unit}</span>}
+      <button
+        className="hb-btn hb-cta"
+        disabled={!draft.trim()}
+        onClick={() => onSubmit(q.kind === 'number' ? Number(draft) : draft)}
       >
-        この案を間取りに適用して見る
+        次へ
       </button>
     </div>
   );
 }
 
+/* ───────────────── 案 ───────────────── */
+
+function StepRow({ step, model, index, names }: { step: WorkStep; model: SpaceModel; index: number; names: Map<string, string> }) {
+  return (
+    <li className={'step by-' + step.by}>
+      <span className="step-no">{String(index + 1).padStart(2, '0')}</span>
+      <div className="step-body">
+        <div className="step-head">
+          <h4>{jp(step.title)}</h4>
+          <span className="step-by">{HANDS_LABEL[step.by]}</span>
+        </div>
+        <p className="step-why">{step.why}</p>
+        {step.ops.length > 0 && (
+          <p className="step-ops">{step.ops.map((o) => opLabel(o, model, names)).join(' ／ ')}</p>
+        )}
+        {step.blockedBy?.map((b, i) => (
+          <p key={i} className="step-block">先に確かめる — {b}</p>
+        ))}
+        {step.basedOn?.map((b, i) => (
+          <p key={i} className="step-based">見たこと — {b}</p>
+        ))}
+      </div>
+    </li>
+  );
+}
+
+function ProposalSheet({ p, model, index }: { p: Proposal; model: SpaceModel; index: number }) {
+  const router = useRouter();
+  const priceBook = useEditor((s) => s.priceBook);
+  const ops = useMemo(() => opsOf(p), [p]);
+  const est: PlanEstimate = useMemo(() => estimatePlan(model, ops, priceBook), [model, ops, priceBook]);
+  const unverified = est.lines.some((l) => !l.verified);
+  const warnings = est.lines.filter((l) => l.structuralWarning);
+
+  const stages: Stage[] = [1, 2, 3];
+  const names = useMemo(() => roomNames(model), [model]);
+
+  return (
+    <article className="sheet">
+      <header className="sheet-head">
+        <span className="sheet-no">{KANJI[index] ?? index + 1}</span>
+        <h2>{jp(p.name)}</h2>
+        <p className="sheet-line">{jp(p.line)}</p>
+      </header>
+
+      <section className="sheet-because">
+        <h3>なぜこの案か</h3>
+        <p>{p.because}</p>
+      </section>
+
+      <PlanPerspective
+        model={model}
+        ops={ops}
+        planName={p.name}
+        desiredUse={useEditor.getState().hearing.use ?? useEditor.getState().lastDiagnosis?.input.desiredUse}
+      />
+
+      {stages.map((s) => {
+        const steps = p.steps.filter((x) => x.stage === s);
+        if (!steps.length) return null;
+        return (
+          <section key={s} className={'stage stage-' + s}>
+            <h3>
+              <span className="stage-kanji">{STAGE_KANJI[s]}</span>
+              {STAGE_LABEL[s]}
+            </h3>
+            <ol className="steps">
+              {steps.map((st, i) => (
+                <StepRow key={st.id} step={st} model={model} index={i} names={names} />
+              ))}
+            </ol>
+          </section>
+        );
+      })}
+
+      <div className="sheet-cols">
+        <section className="notnow">
+          <h3>今回はやらないこと</h3>
+          <ul>{p.notNow.map((n, i) => <li key={i}>{n}</li>)}</ul>
+        </section>
+        <section className="assume">
+          <h3>置いている前提</h3>
+          <ul>{p.assumptions.map((n, i) => <li key={i}>{n}</li>)}</ul>
+        </section>
+      </div>
+
+      <section className="nexttwo">
+        <h3>次の一手</h3>
+        <ol>{p.nextTwo.map((n, i) => <li key={i}>{n}</li>)}</ol>
+      </section>
+
+      {warnings.length > 0 && (
+        <p className="hb-warn sheet-warn">
+          この案には耐力壁の疑いがある壁への工事が含まれます。撤去・開口の可否は、現地で建築士の確認が要ります。
+        </p>
+      )}
+
+      <section className="money">
+        <div>
+          <span>(a) 自分たちで買う材料費{unverified && <em>参考値・要検証</em>}</span>
+          <b>{yen(est.diyMaterial.lowYen)}〜{yen(est.diyMaterial.highYen)}円</b>
+        </div>
+        <div>
+          <span>(b) 専門・有資格工事の材料費{unverified && <em>参考値・要検証</em>}</span>
+          <b>{yen(est.proMaterial.lowYen)}〜{yen(est.proMaterial.highYen)}円</b>
+        </div>
+        <p className="money-note">(b)の施工費は含みません（要見積）。総額の一本値は出しません。</p>
+        {est.permitFlags.length > 0 && (
+          <p className="money-note"><b>(c) 資格・届出</b> — {est.permitFlags.join(' / ')}</p>
+        )}
+      </section>
+
+      <details className="breakdown">
+        <summary>工事項目の内訳と手順（{est.lines.length}件）</summary>
+        <div>
+          {est.lines.map((l, i) => (
+            <div key={i} className="bd-item">
+              <div className="bd-top">
+                <b>{l.name}</b>
+                <span>{l.qty}{l.unit} ／ {yen(l.lowYen)}〜{yen(l.highYen)}円</span>
+              </div>
+              <div className="bd-tags">
+                <span className={'bd-class c-' + l.diyClass}>{DIY_CLASS_LABEL[l.diyClass]}</span>
+                {l.requiredLicense && <span className="bd-lic">{l.requiredLicense}</span>}
+                {l.note && <span className="bd-note">{l.note}</span>}
+              </div>
+              <ol>{l.steps.map((s, j) => <li key={j}>{s}</li>)}</ol>
+            </div>
+          ))}
+        </div>
+      </details>
+
+      <div className="sheet-actions">
+        <button
+          className="hb-btn hb-outline"
+          onClick={() => {
+            useEditor.getState().loadModel(applyOps(model, ops));
+            router.push('/app/editor');
+          }}
+        >
+          この案を間取りに写す
+        </button>
+        <button
+          className="hb-btn hb-dark"
+          onClick={() => {
+            useEditor.getState().setPlans([{ name: p.name, intent: p.line, ops }]);
+            router.push('/app/quote');
+          }}
+        >
+          この案で見積書をつくる
+        </button>
+      </div>
+    </article>
+  );
+}
+
+/* ───────────────── 画面 ───────────────── */
+
 export default function PlanPage() {
   const model = useEditor((s) => s.model);
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; text: string }[]>([]);
-  const [input, setInput] = useState('');
-  const [plans, setPlans] = useState<HearingPlan[] | null>(null);
-  const [busy, setBusy] = useState(false);
-
+  const proposals = useEditor((s) => s.proposals);
+  const reset = useEditor((s) => s.resetHearing);
+  const make = useEditor((s) => s.makeProposals);
   const hasModel = model.levels[0]!.walls.length > 0;
 
-  async function send() {
-    const text = input.trim();
-    if (!text || busy) return;
-    setInput('');
-    const userMessages = [...messages.filter((m) => m.role === 'user').map((m) => m.text), text];
-    setMessages((ms) => [...ms, { role: 'user', text }]);
-    setBusy(true);
-    try {
-      const turn = await askHearing(serialize(model), userMessages);
-      if (turn.reply) setMessages((ms) => [...ms, { role: 'assistant', text: turn.reply! }]);
-      if (turn.plans) {
-        setPlans(turn.plans);
-        useEditor.getState().setPlans(turn.plans);
-      }
-    } catch (e) {
-      setMessages((ms) => [...ms, { role: 'assistant', text: 'エラーが起きました: ' + (e instanceof Error ? e.message : '') }]);
-    } finally {
-      setBusy(false);
-    }
+  if (!hasModel) {
+    return (
+      <main className="plan">
+        <div className="intake">
+          <header className="intake-head">
+            <p className="intake-kicker">改修の相談</p>
+            <h1 className="intake-title">{jp('先に、間取りが要ります。')}</h1>
+            <p className="intake-sub">
+              案は、この家の部屋の並び・窓の位置・傷んでいるところから組みます。
+              図面が無いと、どの案も同じ顔になってしまいます。
+            </p>
+          </header>
+          <a href="/app/editor" className="hb-btn hb-cta ask-go">間取りをつくる</a>
+        </div>
+      </main>
+    );
+  }
+
+  if (!proposals.length) {
+    return (
+      <main className="plan">
+        <Intake />
+      </main>
+    );
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-8">
-            <h1 className="mt-2 text-2xl font-bold">改修の相談</h1>
-      <p className="mt-1 text-sm text-slate-600">
-        いまエディタにある間取り({model.levels[0]!.rooms.length}部屋)をもとに、要望を聞いて3案つくります。
-        金額はすべて材料費ベースの参考レンジです。
+    <main className="plan">
+      <header className="plan-head">
+        <div>
+          <p className="intake-kicker">改修の三案</p>
+          <h1 className="intake-title">{jp('同じ家を、三つの構えで見る。')}</h1>
+        </div>
+        <div className="plan-head-actions">
+          <button className="hb-btn hb-outline" onClick={make}>組み直す</button>
+          <button className="hb-btn hb-outline" onClick={reset}>聞き直す</button>
+        </div>
+      </header>
+      <p className="plan-note">
+        金額はすべて材料費ベースの参考レンジです。総額の一本値は出しません。
+        案の順番は値段ではなく、どこに先に手を入れるかの違いです。
       </p>
-
-      {!hasModel && (
-        <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          間取りがまだ空です。先に<Link href="/app/editor" className="underline">エディタ</Link>でサンプルを読み込むか、壁を描いてください。
-        </div>
-      )}
-
-      <div className="mt-5 rounded-lg border border-slate-300 bg-white">
-        <div className="max-h-72 space-y-2 overflow-y-auto p-4">
-          {messages.length === 0 && (
-            <p className="text-sm text-slate-400">
-              例:「みんなが集まれる土間のカフェにしたい。できるだけ自分たちで直したい」
-            </p>
-          )}
-          {messages.map((m, i) => (
-            <div key={i} className={m.role === 'user' ? 'text-right' : ''}>
-              <span
-                className={
-                  'inline-block max-w-[85%] rounded-lg px-3 py-2 text-sm ' +
-                  (m.role === 'user' ? 'bg-slate-800 text-white' : 'bg-slate-100')
-                }
-              >
-                {m.text}
-              </span>
-            </div>
-          ))}
-          {busy && <div className="text-sm text-slate-400">考えています…</div>}
-        </div>
-        <div className="flex gap-2 border-t border-slate-200 p-3">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && void send()}
-            disabled={!hasModel || busy}
-            placeholder="やりたいこと・予算感・自分でやりたい度合いなど"
-            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-          <button onClick={() => void send()} disabled={!hasModel || busy} className="rounded bg-slate-800 px-4 py-2 text-sm text-white disabled:opacity-40">
-            送信
-          </button>
-        </div>
-      </div>
-
-      {plans && (
-        <div className="mt-6 grid gap-4 lg:grid-cols-3">
-          {plans.map((p) => (
-            <PlanCard key={p.name} plan={p} model={model} />
-          ))}
-        </div>
-      )}
+      {proposals.map((p, i) => (
+        <ProposalSheet key={p.id} p={p} model={model} index={i} />
+      ))}
     </main>
   );
 }

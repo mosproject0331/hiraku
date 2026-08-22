@@ -29,6 +29,9 @@ importers:
       '@hiraku/llm':
         specifier: workspace:*
         version: link:../../packages/llm
+      '@hiraku/proposal':
+        specifier: workspace:*
+        version: link:../../packages/proposal
       '@hiraku/regionpack':
         specifier: workspace:*
         version: link:../../packages/regionpack
@@ -137,6 +140,25 @@ importers:
         specifier: ^4.0.0
         version: 4.4.3
     devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@7.2.0)
+
+  packages/proposal:
+    dependencies:
+      '@hiraku/core':
+        specifier: workspace:*
+        version: link:../core
+      '@hiraku/rules':
+        specifier: workspace:*
+        version: link:../rules
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
