@@ -74,9 +74,13 @@ function guessFloor(name: string): Finish {
 }
 
 /** 改修案(ops)を適用した3Dシーンの材料表をつくる */
-export function buildRenovationScene(model: SpaceModel, ops: RenovationOp[]): RenovationScene {
-  const next = applyOps(model, ops);
-  const level = next.levels[0];
+export function buildRenovationScene(
+  model: SpaceModel,
+  ops: RenovationOp[],
+  levelIndex = 0,
+): RenovationScene {
+  const next = applyOps(model, ops, levelIndex);
+  const level = next.levels[Math.min(levelIndex, next.levels.length - 1)];
   const changes: string[] = [];
   if (!level) return { model: next, rooms: [], cameras: [], changes };
 
@@ -103,7 +107,7 @@ export function buildRenovationScene(model: SpaceModel, ops: RenovationOp[]): Re
 
   // opsの roomId は「改修前」のモデル基準。部屋idは壁を消すと振り直されるため、
   // まず名前で突き合わせる（idで引くと別の部屋に当たってしまう）
-  const beforeRooms = detectRooms(model.levels[0]!);
+  const beforeRooms = detectRooms(model.levels[Math.min(levelIndex, model.levels.length - 1)]!);
   const idToName = new Map(beforeRooms.map((r) => [r.id, r.name] as const));
   const findScene = (roomId: string): RoomScene | undefined => {
     const name = idToName.get(roomId);
@@ -177,7 +181,7 @@ export function buildRenovationScene(model: SpaceModel, ops: RenovationOp[]): Re
   return {
     model: next,
     rooms: [...byRoom.values()],
-    cameras: interiorCameras(next),
+    cameras: interiorCameras(next, 3, levelIndex),
     changes,
   };
 }
@@ -225,8 +229,8 @@ function seesEachOther(a: XY, b: XY, pts: XY[]): boolean {
  * 目線は水平のまま（垂直線が倒れない）。画角は見る先までの距離に合わせる。
  * 窓が画面に入る向きを優先し、光の見える構図にする。
  */
-export function interiorCameras(model: SpaceModel, max = 3): CameraSpec[] {
-  const level = model.levels[0];
+export function interiorCameras(model: SpaceModel, max = 3, levelIndex = 0): CameraSpec[] {
+  const level = model.levels[Math.min(levelIndex, model.levels.length - 1)];
   if (!level) return [];
   const rooms = detectRooms(level);
   const faces = detectFaces(level);

@@ -56,7 +56,9 @@ export default function PlanPerspective({
   planName: string;
   desiredUse?: string;
 }) {
-  const scene = useMemo(() => buildRenovationScene(model, ops), [model, ops]);
+  const levelIndex = useEditor((s) => s.levelIndex);
+  const li = Math.min(levelIndex, model.levels.length - 1);
+  const scene = useMemo(() => buildRenovationScene(model, ops, li), [model, ops, li]);
   const [camIndex, setCamIndex] = useState(0);
   const [light, setLight] = useState<LightKey>('noon');
   const [busy, setBusy] = useState(false);

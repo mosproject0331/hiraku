@@ -27,7 +27,9 @@ function CameraRig({ orbit, cx, cz }: { orbit: React.RefObject<Orbit>; cx: numbe
 
 export default function Preview3D() {
   const model = useEditor((s) => s.model);
-  const level = model.levels[0]!;
+  const levelIndex = useEditor((s) => s.levelIndex);
+  const li = Math.min(levelIndex, model.levels.length - 1);
+  const level = model.levels[li]!;
   const nodeById = new Map(level.nodes.map((n) => [n.id, n] as const));
 
   const xs = level.nodes.map((n) => n.x);

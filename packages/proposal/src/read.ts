@@ -1,4 +1,4 @@
-import { detectFaces, detectRooms, dist, polygonCentroid, type SpaceModel, type XY } from '@hiraku/core';
+import { detectFaces, detectRooms, dist, polygonCentroid, levelName, type Level, type SpaceModel, type XY } from '@hiraku/core';
 
 /**
  * 建物を「読む」。
@@ -11,6 +11,9 @@ import { detectFaces, detectRooms, dist, polygonCentroid, type SpaceModel, type 
 export interface RoomFact {
   id: string;
   name: string;
+  /** 何階の部屋か（0=1階） */
+  levelIndex: number;
+  levelName: string;
   areaM2: number;
   tatami: number;
   centre: XY;
@@ -55,13 +58,20 @@ export interface BuildingFacts {
 }
 
 export function readBuilding(model: SpaceModel): BuildingFacts {
-  const level = model.levels[0];
-  if (!level) return { rooms: [], totalAreaM2: 0, innerWalls: [], darkRoomIds: [] };
+  if (!model.levels.length) return { rooms: [], totalAreaM2: 0, innerWalls: [], darkRoomIds: [] };
+  // 階ごとに読んでから、建物ひとつぶんにまとめる
+  const per = model.levels.map((lv, i) => readLevel(lv, i));
+  if (per.length === 1) return per[0]!;
+  return mergeLevels(per);
+}
+
+function readLevel(level: Level, levelIndex: number): BuildingFacts {
 
   const rooms = detectRooms(level);
   const faces = detectFaces(level);
   const nodeById = new Map(level.nodes.map((n) => [n.id, n] as const));
   const wallById = new Map(level.walls.map((w) => [w.id, w] as const));
+  const lname = level.name || levelName(levelIndex);
 
   // 壁がいくつの部屋に使われているか。1つなら外壁
   const wallUse = new Map<string, string[]>();
@@ -106,6 +116,8 @@ export function readBuilding(model: SpaceModel): BuildingFacts {
     return {
       id: r.id,
       name: r.name,
+      levelIndex,
+      levelName: lname,
       areaM2: r.areaM2,
       tatami: r.tatami,
       centre: pts.length >= 3 ? polygonCentroid(pts) : { x: 0, y: 0 },
@@ -199,4 +211,34 @@ export function wallBetween(b: BuildingFacts, a: string, c: string): InnerWall |
   return b.innerWalls.find(
     (w) => w.removable && ((w.between[0] === a && w.between[1] === c) || (w.between[0] === c && w.between[1] === a)),
   );
+}
+
+/**
+ * 階ごとの読み取りを、建物ひとつぶんにまとめる。
+ * 迎える部屋・水回りは1階から選ぶ（人は1階から入る）。
+ * いちばん奥まった部屋は、上の階も含めて選ぶ。
+ */
+function mergeLevels(per: BuildingFacts[]): BuildingFacts {
+  const ground = per[0]!;
+  const rooms = per.flatMap((p) => p.rooms);
+  const innerWalls = per.flatMap((p) => p.innerWalls);
+  const darkRoomIds = per.flatMap((p) => p.darkRoomIds);
+  const upstairs = per.slice(1).flatMap((p) => p.rooms);
+  // 上の階は、階段を上がるぶんだけ奥にある
+  for (const r of upstairs) r.depthFromEntry += 2;
+  const quiet = [...rooms].sort(
+    (a, b) => b.depthFromEntry - a.depthFromEntry || a.windowAreaM2 - b.windowAreaM2,
+  )[0];
+  const biggest = [...rooms].sort((a, b) => b.areaM2 - a.areaM2)[0];
+  return {
+    rooms,
+    totalAreaM2: Math.round(rooms.reduce((s, r) => s + r.areaM2, 0) * 10) / 10,
+    entryRoomId: ground.entryRoomId,
+    frontRoomId: ground.frontRoomId,
+    quietRoomId: quiet?.id ?? ground.quietRoomId,
+    wetRoomId: ground.wetRoomId,
+    biggestRoomId: biggest?.id ?? ground.biggestRoomId,
+    innerWalls,
+    darkRoomIds,
+  };
 }

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addRectangle, alignWall, detectRooms, dist, extendWall, headingVector, mergeNearbyNodes,
-  moveNode, orthogonalize, setWallLength, vectorHeading, type SpaceModel,
+  addLevel, addRectangle, alignWall, applyOps, detectRooms, dist, extendWall, headingVector,
+  mergeNearbyNodes, moveNode, orthogonalize, removeLevel, setWallLength, takeoff,
+  totalFloorAreaM2, usedIds, vectorHeading, type SpaceModel,
 } from '../src/index';
 
 function empty(): SpaceModel {
@@ -249,5 +250,71 @@ describe('壊れた図面でも止まらない', () => {
     const rooms = detectRooms(lv);
     expect(Date.now() - t0).toBeLessThan(1000);
     for (const r of rooms) expect(r.areaM2).toBeLessThan(100);
+  });
+});
+
+describe('2階建て', () => {
+  function twoStorey(): SpaceModel {
+    // 1階に6畳をつくり、その外周を写して2階を足す
+    let r = extendWall(withNode(), 'n1', 3640, 0);
+    r = extendWall(r.model, r.nodeId, 2730, 90);
+    r = extendWall(r.model, r.nodeId, 3640, 180);
+    r = extendWall(r.model, r.nodeId, 2730, 270);
+    return addLevel(r.model, 0);
+  }
+
+  it('階を足すと、外周が写り、idは重ならない', () => {
+    const m = twoStorey();
+    expect(m.levels).toHaveLength(2);
+    expect(m.levels[1]!.name).toBe('2階');
+    expect(m.levels[1]!.walls).toHaveLength(4);
+    const ids = usedIds(m);
+    const count = m.levels.flatMap((lv) => [...lv.nodes, ...lv.walls].map((x) => x.id)).length;
+    expect(ids.size).toBeGreaterThanOrEqual(count); // 重複していれば size が小さくなる
+    const all = m.levels.flatMap((lv) => [...lv.nodes, ...lv.walls].map((x) => x.id));
+    expect(new Set(all).size).toBe(all.length);
+  });
+
+  it('写した階は仮説として扱う（実測ではない）', () => {
+    const m = twoStorey();
+    for (const n of m.levels[1]!.nodes) expect(n.confidence).toBe('hypothesis');
+  });
+
+  it('面積は全階を合算する', () => {
+    const m = twoStorey();
+    expect(totalFloorAreaM2(m)).toBeCloseTo(9.94 * 2, 1);
+    expect(takeoff(m).totalFloorM2).toBeCloseTo(9.94 * 2, 1);
+    expect(takeoff(m).rooms).toHaveLength(2);
+    expect(takeoff(m).rooms.map((r) => r.levelName).sort()).toEqual(['1階', '2階']);
+  });
+
+  it('2階の壁も、idで見つけて撤去できる', () => {
+    const m = twoStorey();
+    const upper = m.levels[1]!.walls[0]!.id;
+    const after = applyOps(m, [{ op: 'remove_partition', wallId: upper }]);
+    expect(after.levels[0]!.walls).toHaveLength(4); // 1階は無傷
+    expect(after.levels[1]!.walls).toHaveLength(3);
+  });
+
+  it('2階に数値で壁を引ける', () => {
+    const m = twoStorey();
+    const start = m.levels[1]!.nodes[0]!.id;
+    const r = extendWall(m, start, 1820, 270);
+    expect(r.model.levels[0]!.walls).toHaveLength(4);
+    expect(r.model.levels[1]!.walls).toHaveLength(5);
+  });
+
+  it('直角そろえは、どの階にも効く', () => {
+    const m = twoStorey();
+    m.levels[1]!.nodes[1]!.y = 90; // 2階だけ歪ませる
+    const out = orthogonalize(m);
+    const n = out.levels[1]!.nodes;
+    expect(n[0]!.y).toBe(n[1]!.y);
+  });
+
+  it('1階は外せない', () => {
+    const m = twoStorey();
+    expect(removeLevel(m, 0).levels).toHaveLength(2);
+    expect(removeLevel(m, 1).levels).toHaveLength(1);
   });
 });

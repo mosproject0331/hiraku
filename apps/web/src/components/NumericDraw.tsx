@@ -23,6 +23,8 @@ const QUICK = [455, 910, 1365, 1820, 2730, 3640];
 
 export default function NumericDraw({ onDrew }: { onDrew?: () => void }) {
   const model = useEditor((s) => s.model);
+  const levelIndex = useEditor((s) => s.levelIndex);
+  const li = Math.min(levelIndex, model.levels.length - 1);
   const pendingNodeId = useEditor((s) => s.pendingNodeId);
   const extend = useEditor((s) => s.drawExtend);
   const rect = useEditor((s) => s.drawRect);
@@ -45,7 +47,7 @@ export default function NumericDraw({ onDrew }: { onDrew?: () => void }) {
   const [rectD, setRectD] = useState('2730');
   const [freeAngle, setFreeAngle] = useState(false);
 
-  const level = model.levels[0]!;
+  const level = model.levels[li]!;
   const start = level.nodes.find((n) => n.id === pendingNodeId) ?? level.nodes[level.nodes.length - 1];
 
   /** 直前に引いた壁の向き。続きを引くときの目安になる */
@@ -214,13 +216,15 @@ export default function NumericDraw({ onDrew }: { onDrew?: () => void }) {
 /** 選択中の壁・頂点を数値で直すための小さな入力 */
 export function NumericInspector() {
   const model = useEditor((s) => s.model);
+  const levelIndex = useEditor((s) => s.levelIndex);
+  const li = Math.min(levelIndex, model.levels.length - 1);
   const selected = useEditor((s) => s.selected);
   const setWallLen = useEditor((s) => s.drawSetWallLength);
   const alignW = useEditor((s) => s.drawAlignWall);
   const moveN = useEditor((s) => s.drawMoveNode);
   const mutate = useEditor((s) => s.mutate);
 
-  const level = model.levels[0]!;
+  const level = model.levels[li]!;
   const wall = selected?.kind === 'wall' ? level.walls.find((w) => w.id === selected.id) : undefined;
   const node = selected?.kind === 'node' ? level.nodes.find((n) => n.id === selected.id) : undefined;
 

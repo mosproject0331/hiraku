@@ -1,6 +1,7 @@
 import type { Confidence, Level, SpaceModel } from './types';
 import { dist, distToSegment, type XY } from './geometry';
 import { splitWallAt } from './ops';
+import { nextFreeId, usedIds } from './levels';
 
 /**
  * 数値で図面を引くための操作。
@@ -25,17 +26,11 @@ export interface DrawOptions {
   confidence?: Confidence;
   /** これ以内にある既存の頂点にはくっつける(mm) */
   snapMm?: number;
+  /** どの階に引くか。既定は1階 */
+  levelIndex?: number;
 }
 
-const DEFAULTS = { thickness: 120, confidence: 'measured' as Confidence, snapMm: 75 };
-
-function ids(level: Level): Set<string> {
-  const s = new Set<string>();
-  for (const n of level.nodes) s.add(n.id);
-  for (const w of level.walls) s.add(w.id);
-  for (const o of level.openings) s.add(o.id);
-  return s;
-}
+const DEFAULTS = { thickness: 120, confidence: 'measured' as Confidence, snapMm: 75, levelIndex: 0 };
 
 function freeId(taken: Set<string>, prefix: string): string {
   let i = 1;
@@ -46,6 +41,19 @@ function freeId(taken: Set<string>, prefix: string): string {
   }
   taken.add(id);
   return id;
+}
+
+/** その節点がいる階。無ければ指定された階 */
+function levelOfNode(model: SpaceModel, nodeId: string, fallback: number): Level | undefined {
+  for (const lv of model.levels) {
+    if (lv.nodes.some((n) => n.id === nodeId)) return lv;
+  }
+  return model.levels[Math.min(fallback, model.levels.length - 1)];
+}
+
+/** その壁がいる階 */
+function levelOfWall(model: SpaceModel, wallId: string): Level | undefined {
+  return model.levels.find((lv) => lv.walls.some((w) => w.id === wallId));
 }
 
 /**
@@ -146,12 +154,12 @@ export function extendWall(
 ): DrawResult {
   const o = { ...DEFAULTS, ...opts };
   const next = structuredClone(model);
-  const level = next.levels[0];
+  const level = levelOfNode(next, fromNodeId, o.levelIndex);
   if (!level) return { model: next, nodeId: fromNodeId, wallIds: [] };
   const from = level.nodes.find((n) => n.id === fromNodeId);
   if (!from || !(lengthMm > 0)) return { model: next, nodeId: fromNodeId, wallIds: [] };
 
-  const taken = ids(level);
+  const taken = usedIds(next);
   const u = headingVector(headingDeg);
   const target = { x: from.x + u.x * lengthMm, y: from.y + u.y * lengthMm };
   const toId = ensureNode(level, taken, target, o.confidence, o.snapMm);
@@ -169,11 +177,11 @@ export function addRectangle(
 ): DrawResult {
   const o = { ...DEFAULTS, ...opts };
   const next = structuredClone(model);
-  const level = next.levels[0];
+  const level = next.levels[Math.min(o.levelIndex, next.levels.length - 1)];
   if (!level || !(widthMm > 0) || !(depthMm > 0)) {
     return { model: next, nodeId: '', wallIds: [] };
   }
-  const taken = ids(level);
+  const taken = usedIds(next);
   const corners: XY[] = [
     { x: origin.x, y: origin.y },
     { x: origin.x + widthMm, y: origin.y },
@@ -201,7 +209,7 @@ export function setWallLength(
   anchor: 'a' | 'b' | 'center' = 'a',
 ): SpaceModel {
   const next = structuredClone(model);
-  const level = next.levels[0];
+  const level = levelOfWall(next, wallId);
   if (!level || !(lengthMm > 0)) return next;
   const w = level.walls.find((x) => x.id === wallId);
   if (!w) return next;
@@ -240,7 +248,7 @@ export function setWallLength(
  */
 export function alignWall(model: SpaceModel, wallId: string, axis: 'h' | 'v' | 'auto' = 'auto'): SpaceModel {
   const next = structuredClone(model);
-  const level = next.levels[0];
+  const level = levelOfWall(next, wallId);
   if (!level) return next;
   const w = level.walls.find((x) => x.id === wallId);
   if (!w) return next;
@@ -265,7 +273,7 @@ export function alignWall(model: SpaceModel, wallId: string, axis: 'h' | 'v' | '
 /** 頂点を座標で置き直す */
 export function moveNode(model: SpaceModel, nodeId: string, x: number, y: number): SpaceModel {
   const next = structuredClone(model);
-  const level = next.levels[0];
+  const level = levelOfNode(next, nodeId, 0);
   const n = level?.nodes.find((v) => v.id === nodeId);
   if (n) {
     n.x = Math.round(x);
@@ -283,8 +291,14 @@ export function moveNode(model: SpaceModel, nodeId: string, x: number, y: number
  * 実測として入れた頂点は動かさない。
  */
 export function orthogonalize(model: SpaceModel, toleranceDeg = 14, passes = 40): SpaceModel {
+  let out = structuredClone(model);
+  for (let i = 0; i < out.levels.length; i++) out = orthogonalizeLevel(out, i, toleranceDeg, passes);
+  return out;
+}
+
+function orthogonalizeLevel(model: SpaceModel, index: number, toleranceDeg: number, passes: number): SpaceModel {
   const next = structuredClone(model);
-  const level = next.levels[0];
+  const level = next.levels[index];
   if (!level) return next;
   const byId = new Map(level.nodes.map((n) => [n.id, n] as const));
 
@@ -343,8 +357,14 @@ export function orthogonalize(model: SpaceModel, toleranceDeg = 14, passes = 40)
 
 /** ほとんど同じ位置にある頂点をひとつにまとめる */
 export function mergeNearbyNodes(model: SpaceModel, toleranceMm = 60): SpaceModel {
+  let out = structuredClone(model);
+  for (let i = 0; i < out.levels.length; i++) out = mergeNearbyNodesInLevel(out, i, toleranceMm);
+  return out;
+}
+
+function mergeNearbyNodesInLevel(model: SpaceModel, index: number, toleranceMm: number): SpaceModel {
   const next = structuredClone(model);
-  const level = next.levels[0];
+  const level = next.levels[index];
   if (!level) return next;
 
   const remap = new Map<string, string>();

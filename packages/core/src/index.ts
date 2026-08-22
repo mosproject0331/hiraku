@@ -39,3 +39,16 @@ export {
   sunTimes,
 } from './geo';
 export type { Site, SolarPosition, SunTimes } from './geo';
+export {
+  usedIds,
+  nextFreeId,
+  findWall,
+  findRoom,
+  findOpeningLevel,
+  allRooms,
+  levelName,
+  addLevel,
+  removeLevel,
+  totalFloorAreaM2,
+} from './levels';
+export type { Located } from './levels';

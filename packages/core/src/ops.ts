@@ -1,5 +1,6 @@
 import type { Level, RenovationOp, SpaceModel } from './types';
 import { detectRooms } from './rooms';
+import { allRooms, findWall, findOpeningLevel, nextFreeId, usedIds } from './levels';
 import { dist } from './geometry';
 
 export interface OpIssue {
@@ -16,12 +17,11 @@ const FINISH_IDS = new Set([
 /** 改修Opの適用可否チェック(§4)。errorは適用不可、warningは適用可だがレポートに必ず載せる */
 export function validateOps(model: SpaceModel, ops: RenovationOp[]): OpIssue[] {
   const issues: OpIssue[] = [];
-  const level = model.levels[0];
-  if (!level) return [{ index: -1, level: 'error', message: 'モデルにレベルがありません' }];
-  const rooms = detectRooms(level);
-  const wallIds = new Set(level.walls.map((w) => w.id));
-  const openingIds = new Set(level.openings.map((o) => o.id));
-  const roomIds = new Set(rooms.map((r) => r.id));
+  if (!model.levels.length) return [{ index: -1, level: 'error', message: 'モデルにレベルがありません' }];
+  // 階をまたいで探す。2階の壁を撤去する案も通す
+  const wallIds = new Set(model.levels.flatMap((lv) => lv.walls.map((w) => w.id)));
+  const openingIds = new Set(model.levels.flatMap((lv) => lv.openings.map((o) => o.id)));
+  const roomIds = new Set(allRooms(model).map((r) => r.room.id));
 
   ops.forEach((op, i) => {
     switch (op.op) {
@@ -30,7 +30,7 @@ export function validateOps(model: SpaceModel, ops: RenovationOp[]): OpIssue[] {
           issues.push({ index: i, level: 'error', message: `存在しない壁を撤去しようとしています(${op.wallId})` });
           break;
         }
-        const w = level.walls.find((x) => x.id === op.wallId)!;
+        const w = findWall(model, op.wallId)!.item;
         if (w.structural === 'suspected') {
           issues.push({
             index: i,
@@ -50,7 +50,7 @@ export function validateOps(model: SpaceModel, ops: RenovationOp[]): OpIssue[] {
           issues.push({ index: i, level: 'error', message: `存在しない壁に開口を設けようとしています(${op.wallId})` });
           break;
         }
-        const w = level.walls.find((x) => x.id === op.wallId)!;
+        const w = findWall(model, op.wallId)!.item;
         if (w.structural === 'suspected') {
           issues.push({
             index: i,
@@ -97,44 +97,58 @@ export function validateOps(model: SpaceModel, ops: RenovationOp[]): OpIssue[] {
 }
 
 let opSeq = 0;
-function oid(prefix: string): string {
-  opSeq += 1;
-  return prefix + '_op' + opSeq;
-}
 
 /** Op列を適用した新モデルを返す(イミュータブル)。errorのあるOpはスキップ */
-export function applyOps(model: SpaceModel, ops: RenovationOp[]): SpaceModel {
+export function applyOps(model: SpaceModel, ops: RenovationOp[], levelIndex = 0): SpaceModel {
   const issues = validateOps(model, ops);
   const errored = new Set(issues.filter((i) => i.level === 'error').map((i) => i.index));
   const next = structuredClone(model);
-  const level: Level = next.levels[0]!;
+  if (!next.levels.length) return next;
+  const taken = usedIds(next);
+  /** 対象がある階を返す。無ければ指定された階 */
+  const levelOf = (id?: string): Level => {
+    if (id) {
+      const w = findWall(next, id);
+      if (w) return w.level;
+      const o = findOpeningLevel(next, id);
+      if (o) return o.level;
+    }
+    return next.levels[Math.min(levelIndex, next.levels.length - 1)]!;
+  };
 
   ops.forEach((op, i) => {
     if (errored.has(i)) return;
     switch (op.op) {
-      case 'remove_partition':
+      case 'remove_partition': {
+        const level = levelOf(op.wallId);
         level.walls = level.walls.filter((w) => w.id !== op.wallId);
         level.openings = level.openings.filter((o) => o.wallId !== op.wallId);
         break;
+      }
       case 'add_partition': {
-        const na = { id: oid('n'), x: op.a.x, y: op.a.y, confidence: 'hypothesis' as const };
-        const nb = { id: oid('n'), x: op.b.x, y: op.b.y, confidence: 'hypothesis' as const };
+        const level = levelOf();
+        const na = { id: nextFreeId(next, 'n', taken), x: op.a.x, y: op.a.y, confidence: 'hypothesis' as const };
+        const nb = { id: nextFreeId(next, 'n', taken), x: op.b.x, y: op.b.y, confidence: 'hypothesis' as const };
         level.nodes.push(na, nb);
         level.walls.push({
-          id: oid('w'), a: na.id, b: nb.id, thickness: 120,
+          id: nextFreeId(next, 'w', taken), a: na.id, b: nb.id, thickness: 120,
           confidence: 'hypothesis', structural: 'unknown',
         });
         break;
       }
-      case 'add_opening':
+      case 'add_opening': {
+        const level = levelOf(op.wallId);
         level.openings.push({
-          id: oid('o'), wallId: op.wallId, offset: op.offset, width: op.width,
+          id: nextFreeId(next, 'o', taken), wallId: op.wallId, offset: op.offset, width: op.width,
           height: op.height, sillHeight: op.sillHeight, kind: op.kind, confidence: 'hypothesis',
         });
         break;
-      case 'close_opening':
+      }
+      case 'close_opening': {
+        const level = levelOf(op.openingId);
         level.openings = level.openings.filter((o) => o.id !== op.openingId);
         break;
+      }
       default:
         // 仕上げ・設備系は幾何を変えない
         break;

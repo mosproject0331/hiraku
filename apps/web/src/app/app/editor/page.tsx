@@ -56,7 +56,9 @@ export default function EditorPage() {
     fitRef.current = fit;
   }, []);
 
-  const level = model.levels[0]!;
+  const levelIndex = useEditor((s) => s.levelIndex);
+  const li = Math.min(levelIndex, model.levels.length - 1);
+  const level = model.levels[li]!;
   const nodeById = new Map(level.nodes.map((n) => [n.id, n] as const));
 
   const selWall = selected?.kind === 'wall' ? level.walls.find((w) => w.id === selected.id) : undefined;
@@ -86,7 +88,37 @@ export default function EditorPage() {
   return (
     <div className="fullpane" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
       <header className="editor-tools">
-                <div className="hb-seg">
+        <div className="hb-seg floors" role="group" aria-label="階">
+          {model.levels.map((lv, i) => (
+            <button
+              key={lv.id}
+              data-on={i === li}
+              onClick={() => useEditor.getState().setLevelIndex(i)}
+              title={`${lv.name}を編集`}
+            >
+              {lv.name}
+            </button>
+          ))}
+          <button
+            onClick={() => useEditor.getState().addFloor(model.levels[li]!.walls.length > 0)}
+            title="階を足す（下の階の外周を写します）"
+          >
+            ＋階
+          </button>
+          {li > 0 && (
+            <button
+              onClick={() => {
+                if (confirm(`${level.name}を消します。よろしいですか。`)) {
+                  useEditor.getState().removeFloor(li);
+                }
+              }}
+              title="この階を消す"
+            >
+              −
+            </button>
+          )}
+        </div>
+        <div className="hb-seg">
           {TOOLS.map((t) => (
             <button
               key={t.id}
@@ -324,7 +356,7 @@ export default function EditorPage() {
                       value={selWall.structural}
                       onChange={(e) =>
                         mutate((m) => {
-                          const w = m.levels[0]!.walls.find((x) => x.id === selWall.id);
+                          const w = m.levels[li]!.walls.find((x) => x.id === selWall.id);
                           if (w) w.structural = e.target.value as typeof w.structural;
                         })
                       }
@@ -355,7 +387,7 @@ export default function EditorPage() {
                       value={selOpening[f]}
                       onChange={(e) =>
                         mutate((m) => {
-                          const o = m.levels[0]!.openings.find((x) => x.id === selOpening.id);
+                          const o = m.levels[li]!.openings.find((x) => x.id === selOpening.id);
                           if (o) o[f] = Number(e.target.value) || 0;
                         })
                       }
@@ -482,7 +514,7 @@ export default function EditorPage() {
                           if (!name || name === r.name) return;
                           const idx = level.rooms.findIndex((x) => x.id === r.id);
                           mutate((m) => {
-                            m.levels[0] = setRoomName(m.levels[0]!, idx, name);
+                            m.levels[li] = setRoomName(m.levels[li]!, idx, name);
                           });
                         }}
                         onKeyDown={(e) => {

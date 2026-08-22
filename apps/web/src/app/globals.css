@@ -969,3 +969,6 @@ body{
 .budget.is-over .budget-bar span{background:#b3392b}
 .budget p{margin:9px 0 0;font-size:12px;line-height:1.9;color:var(--fg-2)}
 @media (prefers-color-scheme:dark){ .budget.is-over{background:#2a1d1b} }
+/* 階の切り替え。図面の道具列のいちばん左 */
+.hb-seg.floors button{font-variant-numeric:tabular-nums;min-width:44px}
+.hb-seg.floors button[data-on="true"]{font-weight:700}

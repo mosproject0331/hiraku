@@ -33,7 +33,12 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
   const [backdropDrag, setBackdropDrag] = useState<{ ox: number; oy: number } | null>(null);
   const dragMoved = useRef(false);
 
-  const level: Level = model.levels[0]!;
+  const levelIndex = useEditor((st) => st.levelIndex);
+  /** いま編集している階。範囲外なら1階に戻す */
+  const li = Math.min(levelIndex, model.levels.length - 1);
+  const level: Level = model.levels[li]!;
+  /** 下の階。上階を描くときの下敷きにする */
+  const under: Level | undefined = li > 0 ? model.levels[li - 1] : undefined;
   const nodeById = new Map(level.nodes.map((n) => [n.id, n] as const));
 
   // 表示範囲: 明示的なビュー状態。描画中に勝手に動かない
@@ -119,7 +124,7 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
     const sel = useEditor.getState().selected;
     if (!sel) return;
     mutate((m) => {
-      const lv = m.levels[0]!;
+      const lv = m.levels[li]!;
       if (sel.kind === 'wall') {
         lv.walls = lv.walls.filter((w) => w.id !== sel.id);
         lv.openings = lv.openings.filter((o) => o.wallId !== sel.id);
@@ -206,7 +211,7 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
       const splitPoint = rawHit ? p : sp;
       let targetId: string;
       mutate((m) => {
-        const lv = m.levels[0]!;
+        const lv = m.levels[li]!;
         if (near) {
           targetId = near.id;
         } else if (hitWall) {
@@ -214,11 +219,11 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
           targetId = freshId('n');
           const split = splitWallAt(lv, hitWall.id, splitPoint, targetId);
           if (split) {
-            m.levels[0] = split;
+            m.levels[li] = split;
           } else {
-            m.levels[0]!.nodes.push({ id: targetId, x: sp.x, y: sp.y, confidence: 'measured' });
+            m.levels[li]!.nodes.push({ id: targetId, x: sp.x, y: sp.y, confidence: 'measured' });
           }
-          const lv2 = m.levels[0]!;
+          const lv2 = m.levels[li]!;
           const pending2 = useEditor.getState().pendingNodeId;
           if (pending2 && pending2 !== targetId) {
             lv2.walls.push({
@@ -262,11 +267,11 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
       if (!p) return;
       let targetId = '';
       mutate((m) => {
-        const lv = m.levels[0]!;
+        const lv = m.levels[li]!;
         const newId = freshId('n');
         const split = splitWallAt(lv, wall.id, p, newId);
         if (split) {
-          m.levels[0] = split;
+          m.levels[li] = split;
           targetId = newId;
         } else {
           const a = lv.nodes.find((n) => n.id === wall.a);
@@ -274,7 +279,7 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
           if (!a || !b) return;
           targetId = dist(a, p) <= dist(b, p) ? a.id : b.id;
         }
-        const lv2 = m.levels[0]!;
+        const lv2 = m.levels[li]!;
         const pending = useEditor.getState().pendingNodeId;
         if (pending && pending !== targetId) {
           const exists = lv2.walls.some(
@@ -294,7 +299,7 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
     if (tool === 'delete') {
       select({ kind: 'wall', id: wall.id });
       mutate((m) => {
-        const lv = m.levels[0]!;
+        const lv = m.levels[li]!;
         lv.walls = lv.walls.filter((w) => w.id !== wall.id);
         lv.openings = lv.openings.filter((o) => o.wallId !== wall.id);
       });
@@ -313,7 +318,7 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
       const offset = Math.min(Math.max(t * len - width / 2, 50), len - width - 50);
       const id = freshId('o');
       mutate((m) => {
-        m.levels[0]!.openings.push({
+        m.levels[li]!.openings.push({
           id,
           wallId: wall.id,
           offset: Math.round(offset),
@@ -342,7 +347,7 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
       setPending(pendingNodeId === node.id ? null : node.id);
       if (pendingNodeId && pendingNodeId !== node.id) {
         mutate((m) => {
-          const lv = m.levels[0]!;
+          const lv = m.levels[li]!;
           const exists = lv.walls.some(
             (w) => (w.a === pendingNodeId && w.b === node.id) || (w.b === pendingNodeId && w.a === node.id),
           );
@@ -424,7 +429,7 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
     dragMoved.current = true;
     mutate(
       (m) => {
-        const n = m.levels[0]!.nodes.find((x) => x.id === dragId);
+        const n = m.levels[li]!.nodes.find((x) => x.id === dragId);
         if (n) {
           n.x = Math.round(p.x / 5) * 5;
           n.y = Math.round(p.y / 5) * 5;
@@ -452,7 +457,7 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
       // 人の修正は measured として尊重(§2-7)
       mutate(
         (m) => {
-          const n = m.levels[0]!.nodes.find((x) => x.id === dragId);
+          const n = m.levels[li]!.nodes.find((x) => x.id === dragId);
           if (n) n.confidence = 'measured';
         },
         { skipHistory: true },
@@ -588,6 +593,20 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
       })}
 
       {/* 壁 */}
+      {/* 下の階を下敷きにする。上階はこの上をなぞると早い */}
+      {under && (
+        <g className="under-layer" opacity={0.28}>
+          {under.walls.map((w) => {
+            const a = under.nodes.find((n) => n.id === w.a);
+            const b = under.nodes.find((n) => n.id === w.b);
+            if (!a || !b) return null;
+            return (
+              <line key={'u' + w.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+                stroke="#7c8ba1" strokeWidth={w.thickness} strokeLinecap="square" />
+            );
+          })}
+        </g>
+      )}
       {level.walls.map((w) => {
         const a = nodeById.get(w.a);
         const b = nodeById.get(w.b);
@@ -651,7 +670,7 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
             e.stopPropagation();
             if (tool === 'delete') {
               mutate((m) => {
-                m.levels[0]!.openings = m.levels[0]!.openings.filter((x) => x.id !== o.id);
+                m.levels[li]!.openings = m.levels[li]!.openings.filter((x) => x.id !== o.id);
               });
               select(null);
             } else {

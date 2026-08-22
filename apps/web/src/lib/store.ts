@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
+  addLevel,
   addRectangle,
   alignWall,
   calibrateBackdrop,
@@ -10,9 +11,11 @@ import {
   mergeNearbyNodes,
   moveNode,
   orthogonalize,
+  removeLevel,
   serialize,
   setWallLength,
   solveConstraints,
+  usedIds,
   type Backdrop,
   type CheckEntry,
   type CheckState,
@@ -124,6 +127,8 @@ interface EditorState {
   checkUse: DesiredUse | null;
   /** 御見積書。案件ごとに1通を持ち回る */
   quote: QuoteDoc | null;
+  /** いま編集している階（0=1階） */
+  levelIndex: number;
   /** 敷地。どこに、どの向きで建っているか */
   site: Site | null;
   /** ヒアリングで集めた、その人の側の条件 */
@@ -174,6 +179,12 @@ interface EditorState {
   setQuote: (q: QuoteDoc | null) => void;
   patchQuote: (p: Partial<QuoteDoc>) => void;
   setSite: (s: Site | null) => void;
+  /** 編集する階を変える */
+  setLevelIndex: (i: number) => void;
+  /** 階を足す。下の階の外周を写すかを選べる */
+  addFloor: (copyOutline: boolean) => void;
+  /** 階を外す。1階は外せない */
+  removeFloor: (i: number) => void;
   /** ヒアリングの答えを1つ入れる */
   answerHearing: (questionId: string, raw: Answer) => void;
   /** ヒアリングをやり直す */
@@ -224,6 +235,7 @@ export const useEditor = create<EditorState>()(
   customChecks: [],
   checkUse: null,
   quote: null,
+  levelIndex: 0,
   site: null,
   hearing: {},
   proposals: [],
@@ -385,6 +397,23 @@ export const useEditor = create<EditorState>()(
   setCheckUse: (checkUse) => set({ checkUse }),
   setQuote: (quote) => set({ quote }),
   setSite: (site) => set({ site }),
+  setLevelIndex: (levelIndex) => {
+    const max = get().model.levels.length - 1;
+    set({ levelIndex: Math.max(0, Math.min(max, levelIndex)), selected: null, pendingNodeId: null });
+  },
+  addFloor: (copyOutline) => {
+    const { model } = get();
+    const next = addLevel(model, copyOutline ? model.levels.length - 1 : undefined);
+    commit(get, set, next, { levelIndex: next.levels.length - 1, selected: null, pendingNodeId: null });
+  },
+  removeFloor: (i) => {
+    const next = removeLevel(get().model, i);
+    commit(get, set, next, {
+      levelIndex: Math.min(get().levelIndex, next.levels.length - 1),
+      selected: null,
+      pendingNodeId: null,
+    });
+  },
   answerHearing: (questionId, raw) => {
     const q = QUESTIONS.find((x) => x.id === questionId);
     if (!q) return;
@@ -413,27 +442,33 @@ export const useEditor = create<EditorState>()(
     const { model, pendingNodeId } = get();
     let base = model;
     let startId = pendingNodeId;
-    const has = (id: string | null) => !!id && base.levels[0]!.nodes.some((n) => n.id === id);
+    const lv0 = base.levels[Math.min(get().levelIndex, base.levels.length - 1)]!;
+    const has = (id: string | null) => !!id && lv0.nodes.some((n) => n.id === id);
     if (!has(startId)) {
-      const lv = base.levels[0]!;
+      const lv = lv0;
       const last = lv.nodes[lv.nodes.length - 1];
       if (last) {
         startId = last.id;
       } else {
         base = structuredClone(base);
-        base.levels[0]!.nodes.push({ id: 'n1', x: 0, y: 0, confidence: 'measured' });
-        startId = 'n1';
+        const target = base.levels[Math.min(get().levelIndex, base.levels.length - 1)]!;
+        const id = `n${usedIds(base).size + 1}`;
+        target.nodes.push({ id, x: 0, y: 0, confidence: 'measured' });
+        startId = id;
       }
     }
-    const r = extendWall(base, startId!, lengthMm, headingDeg, { confidence: 'measured' });
+    const r = extendWall(base, startId!, lengthMm, headingDeg, {
+      confidence: 'measured',
+      levelIndex: get().levelIndex,
+    });
     commit(get, set, r.model, { pendingNodeId: r.nodeId, selected: { kind: 'node', id: r.nodeId } });
   },
   drawRect: (widthMm, depthMm) => {
-    const { model, pendingNodeId } = get();
-    const lv = model.levels[0]!;
+    const { model, pendingNodeId, levelIndex } = get();
+    const lv = model.levels[Math.min(levelIndex, model.levels.length - 1)]!;
     const start = lv.nodes.find((n) => n.id === pendingNodeId);
     const origin = start ? { x: start.x, y: start.y } : { x: 0, y: 0 };
-    const r = addRectangle(model, origin, widthMm, depthMm, { confidence: 'measured' });
+    const r = addRectangle(model, origin, widthMm, depthMm, { confidence: 'measured', levelIndex });
     commit(get, set, r.model, { pendingNodeId: r.nodeId, selected: null });
   },
   drawSetWallLength: (wallId, lengthMm, anchor) => {
@@ -550,6 +585,7 @@ export const useEditor = create<EditorState>()(
         checkUse: s.checkUse,
         quote: s.quote,
         site: s.site,
+        levelIndex: s.levelIndex,
         hearing: s.hearing,
         proposals: s.proposals,
         priceBook: s.priceBook,
