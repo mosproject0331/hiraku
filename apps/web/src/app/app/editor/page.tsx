@@ -18,6 +18,7 @@ import { CONF_COLOR, CONF_LABEL, OPENING_LABEL } from '@/lib/colors';
 import { backdropSizeMm, suggestNextMeasurements } from '@hiraku/core';
 import BackdropLoader from '@/components/BackdropLoader';
 import EditorStart from '@/components/EditorStart';
+import NumericDraw, { NumericInspector } from '@/components/NumericDraw';
 import { useEditor, type Tool } from '@/lib/store';
 
 const Preview3D = dynamic(() => import('@/components/Preview3D'), { ssr: false });
@@ -25,6 +26,7 @@ const Preview3D = dynamic(() => import('@/components/Preview3D'), { ssr: false }
 const TOOLS: { id: Tool; label: string }[] = [
   { id: 'select', label: '選択' },
   { id: 'wall', label: '壁を描く' },
+  { id: 'numeric', label: '数値で引く' },
   { id: 'opening', label: '開口' },
   { id: 'pin', label: '劣化ピン' },
   { id: 'delete', label: '削除' },
@@ -86,7 +88,18 @@ export default function EditorPage() {
       <header className="editor-tools">
                 <div className="hb-seg">
           {TOOLS.map((t) => (
-            <button key={t.id} onClick={() => setTool(t.id)} data-on={tool === t.id}>
+            <button
+              key={t.id}
+              onClick={() => {
+                setTool(t.id);
+                // 数値入力のときは図面を広く使いたい
+                if (t.id === 'numeric') {
+                  setSheetOpen(false);
+                  window.setTimeout(() => fitRef.current?.(), 60);
+                }
+              }}
+              data-on={tool === t.id}
+            >
               {t.label}
             </button>
           ))}
@@ -132,6 +145,9 @@ export default function EditorPage() {
         {tool === 'wall' && (
           <span className="hb-faint" style={{ fontSize: 12 }}>クリックで頂点を置き、続けてクリックで壁がつながります(Escで終了)</span>
         )}
+        {tool === 'numeric' && (
+          <span className="hb-faint" style={{ fontSize: 12 }}>実測した寸法を打ち込みます。図面の点をタップすると起点が移ります</span>
+        )}
         <div className="mx-2 h-5 w-px bg-slate-200" />
         <button onClick={undo} disabled={!history.length} className="hb-btn hb-outline">元に戻す</button>
         <button onClick={redo} disabled={!future.length} className="hb-btn hb-outline">やり直す</button>
@@ -167,6 +183,20 @@ export default function EditorPage() {
         >
           グリッド吸着
         </button>
+        <button
+          onClick={() => useEditor.getState().drawOrthogonalize()}
+          className="hb-btn hb-outline"
+          title="ほぼ直角の壁を、角をほどかずに直角へそろえます"
+        >
+          直角にそろえる
+        </button>
+        <button
+          onClick={() => useEditor.getState().drawMergeNodes()}
+          className="hb-btn hb-outline"
+          title="ほとんど重なっている頂点をひとつにまとめます"
+        >
+          頂点をまとめる
+        </button>
         <button onClick={() => fitRef.current?.()} className="hb-btn hb-outline">全体を表示</button>
         <button
           onClick={() => {
@@ -188,8 +218,13 @@ export default function EditorPage() {
 
       <div className="editor-shell">
         <div className="editor-canvas">
-          <PlanCanvas onFitReady={onFitReady} />
-          {level.walls.length === 0 && !level.backdrop && <EditorStart />}
+          <div className="editor-canvas-view">
+            <PlanCanvas onFitReady={onFitReady} />
+            {level.walls.length === 0 && !level.backdrop && tool !== 'numeric' && <EditorStart />}
+          </div>
+          {tool === 'numeric' && (
+            <NumericDraw onDrew={() => window.setTimeout(() => fitRef.current?.(), 0)} />
+          )}
         </div>
         <button
           type="button"
@@ -300,6 +335,7 @@ export default function EditorPage() {
                       <option value="cleared_by_expert">専門家確認済み</option>
                     </select>
                   </label>
+                  <NumericInspector />
                   {selWall.structural === 'suspected' && (
                     <p className="rounded bg-red-50 px-2 py-1 text-xs text-red-700">
                       この壁の撤去・開口の可否は、現地で専門家の確認が必要です。
@@ -331,7 +367,10 @@ export default function EditorPage() {
             )}
             {selNode && (
               <div className="text-xs">
-                頂点 ({(selNode.x / 1000).toFixed(2)}, {(selNode.y / 1000).toFixed(2)})m / {CONF_LABEL[selNode.confidence]}
+                <div>
+                  頂点 ({(selNode.x / 1000).toFixed(2)}, {(selNode.y / 1000).toFixed(2)})m / {CONF_LABEL[selNode.confidence]}
+                </div>
+                <NumericInspector />
               </div>
             )}
             {selPin && (

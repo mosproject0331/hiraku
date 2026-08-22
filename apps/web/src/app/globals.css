@@ -212,7 +212,8 @@ body{
 
 /* ── 間取りエディタ: スマホ最適化 ───────────────── */
 .editor-shell{display:grid;grid-template-columns:1fr 360px;min-height:0;flex:1}
-.editor-canvas{position:relative;min-height:0}
+.editor-canvas{position:relative;min-height:0;display:flex;flex-direction:column}
+.editor-canvas-view{position:relative;flex:1;min-height:0}
 .editor-side{
   display:flex;flex-direction:column;overflow-y:auto;min-height:0;
   border-left:1px solid var(--border-soft);background:var(--card);
@@ -567,4 +568,61 @@ body{
     animation-duration:.001ms !important;animation-iteration-count:1 !important;
     transition-duration:.001ms !important;scroll-behavior:auto !important;
   }
+}
+
+/* ── 数値で図面を引く入力盤 ───────────────────────── */
+.numpad{
+  flex:none;z-index:14;
+  background:rgba(255,255,255,.97);
+  border-top:1px solid var(--border);
+  padding:9px clamp(10px,2vw,14px) calc(9px + env(safe-area-inset-bottom));
+  box-shadow:0 -6px 20px rgba(20,18,15,.07);
+}
+.numpad-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:8px}
+.numpad-mode button{font-size:12.5px}
+.numpad-origin{font-size:11.5px;color:var(--fg-2);font-variant-numeric:tabular-nums}
+.numpad-origin em{font-style:normal;color:var(--fg-3);margin-left:2px}
+.numpad-clear{
+  margin-left:auto;background:none;border:0;padding:6px 2px;cursor:pointer;
+  font-size:11.5px;color:var(--fg-3);text-decoration:underline;
+}
+.numpad-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:7px}
+.numpad-dirs{display:flex;gap:5px}
+.numpad-dir{
+  min-width:46px;min-height:46px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--border);background:var(--card);color:var(--fg);
+  font-size:17px;line-height:1;display:inline-flex;align-items:center;justify-content:center;
+}
+.numpad-dir.numpad-angle{font-size:12px;min-width:56px}
+.numpad-dir.on{background:var(--fg);color:var(--card);border-color:var(--fg)}
+.numpad-field{
+  display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--border);border-radius:10px;background:var(--card);
+  padding:0 10px;min-height:46px;
+}
+.numpad-field>span{font-size:11px;color:var(--fg-3);flex:none}
+.numpad-field>b{font-size:11px;color:var(--fg-3);font-weight:500;flex:none}
+.numpad-field input{
+  width:88px;border:0;outline:0;background:none;color:var(--fg);
+  font-size:17px;font-variant-numeric:tabular-nums;text-align:right;padding:0;
+}
+.numpad-len input{width:104px}
+.numpad-deg input{width:64px}
+.numpad-go{min-height:46px;font-size:14px;padding:0 20px}
+.numpad-undo{min-height:46px}
+.numpad-quick{margin-top:0}
+.numpad-quick .chip{font-size:12px;padding:6px 12px;min-height:34px;font-variant-numeric:tabular-nums}
+.numpad-note{font-size:10.5px;color:var(--fg-3);align-self:center;white-space:nowrap;margin-left:4px}
+.numpad-hint{margin:6px 0 0;font-size:11px;line-height:1.7;color:var(--fg-3)}
+.numpad-hint b{color:var(--conf-measured)}
+
+.numins{margin-top:8px;display:flex;flex-direction:column;gap:7px}
+.numins-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.numins-lab{font-size:11px;color:var(--fg-3)}
+.numins .numpad-field{min-height:42px}
+.numins .numpad-field input{width:82px;font-size:16px}
+.numins .hb-btn{min-height:42px;font-size:12.5px}
+@media (max-width:520px){
+  .numpad-field input{width:74px}
+  .numpad-len input{width:86px}
 }

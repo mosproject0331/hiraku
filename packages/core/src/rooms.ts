@@ -42,6 +42,9 @@ export function detectFaces(level: Level): Face[] {
 
   const visited = new Set<string>();
   const faces: { nodeIds: string[]; wallIds: string[]; signedArea: number }[] = [];
+  // 正しい平面グラフなら、面は必ず半辺の本数以内で閉じる。
+  // 重なった壁などで閉じないときは、その面を捨てて図を壊さない。
+  const halfEdges = level.walls.length * 2;
 
   for (const list of out.values()) {
     for (const start of list) {
@@ -50,7 +53,8 @@ export function detectFaces(level: Level): Face[] {
       const wallIds: string[] = [];
       let cur = start;
       let guard = 0;
-      while (guard++ < 100000) {
+      let closed = false;
+      while (guard++ <= halfEdges + 1) {
         visited.add(cur.from + '|' + cur.to);
         nodeIds.push(cur.from);
         wallIds.push(cur.wallId);
@@ -67,8 +71,12 @@ export function detectFaces(level: Level): Face[] {
         }
         if (!next) next = nbrs[nbrs.length - 1]!;
         cur = next;
-        if (cur.from === start.from && cur.to === start.to) break;
+        if (cur.from === start.from && cur.to === start.to) {
+          closed = true;
+          break;
+        }
       }
+      if (!closed) continue;
       const pts: XY[] = nodeIds.map((id) => nodeById.get(id)!);
       faces.push({ nodeIds, wallIds, signedArea: signedAreaMm2(pts) });
     }

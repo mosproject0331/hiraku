@@ -1,10 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
+  addRectangle,
+  alignWall,
   calibrateBackdrop,
   deserialize,
   detectRooms,
+  extendWall,
+  mergeNearbyNodes,
+  moveNode,
+  orthogonalize,
   serialize,
+  setWallLength,
   solveConstraints,
   type Backdrop,
   type CheckEntry,
@@ -22,7 +29,7 @@ import type { HearingPlan } from '@hiraku/llm';
 import type { PriceBook } from '@hiraku/estimate';
 import type { QuoteDoc } from '@hiraku/report';
 
-export type Tool = 'select' | 'wall' | 'opening' | 'delete' | 'pin' | 'backdrop' | 'calibrate';
+export type Tool = 'select' | 'wall' | 'numeric' | 'opening' | 'delete' | 'pin' | 'backdrop' | 'calibrate';
 export type Selected = { kind: 'node' | 'wall' | 'opening' | 'pin'; id: string } | null;
 
 export function emptyModel(): SpaceModel {
@@ -39,6 +46,19 @@ export function emptyModel(): SpaceModel {
 
 function refreshRooms(m: SpaceModel): void {
   for (const lv of m.levels) lv.rooms = detectRooms(lv);
+}
+
+/** 作図の結果を、履歴を積んで反映する */
+function commit(
+  get: () => EditorState,
+  set: (partial: Partial<EditorState>) => void,
+  next: SpaceModel,
+  extra: Partial<EditorState> = {},
+): void {
+  const { model, history } = get();
+  const m = structuredClone(next);
+  refreshRooms(m);
+  set({ model: m, history: [...history.slice(-49), serialize(model)], future: [], ...extra });
 }
 
 interface EditorState {
@@ -106,6 +126,20 @@ interface EditorState {
   setCheckUse: (u: DesiredUse | null) => void;
   setQuote: (q: QuoteDoc | null) => void;
   patchQuote: (p: Partial<QuoteDoc>) => void;
+  /** 起点から、長さと向き(度)を打ち込んで壁をのばす */
+  drawExtend: (lengthMm: number, headingDeg: number) => void;
+  /** 起点から、幅×奥行の長方形を置く */
+  drawRect: (widthMm: number, depthMm: number) => void;
+  /** 選んだ壁の長さを打ち込んだ値にする */
+  drawSetWallLength: (wallId: string, lengthMm: number, anchor: 'a' | 'b' | 'center') => void;
+  /** 選んだ壁を水平・垂直にそろえる */
+  drawAlignWall: (wallId: string, axis: 'h' | 'v' | 'auto') => void;
+  /** 図面全体を直角にそろえる */
+  drawOrthogonalize: () => void;
+  /** 近すぎる頂点をひとつにまとめる */
+  drawMergeNodes: () => void;
+  /** 頂点を座標で置き直す */
+  drawMoveNode: (nodeId: string, x: number, y: number) => void;
   setPriceBook: (b: PriceBook) => void;
   toProject: () => Project;
   hydrateProject: (p: Project) => void;
@@ -299,6 +333,51 @@ export const useEditor = create<EditorState>()(
     set({ quote: { ...cur, ...patch } });
   },
   setPriceBook: (priceBook) => set({ priceBook }),
+  /* ── 数値で引く ──
+     実測した寸法をそのまま打ち込めるようにする。
+     いずれも履歴を積むので、取り消せる。 */
+  drawExtend: (lengthMm, headingDeg) => {
+    const { model, pendingNodeId } = get();
+    let base = model;
+    let startId = pendingNodeId;
+    const has = (id: string | null) => !!id && base.levels[0]!.nodes.some((n) => n.id === id);
+    if (!has(startId)) {
+      const lv = base.levels[0]!;
+      const last = lv.nodes[lv.nodes.length - 1];
+      if (last) {
+        startId = last.id;
+      } else {
+        base = structuredClone(base);
+        base.levels[0]!.nodes.push({ id: 'n1', x: 0, y: 0, confidence: 'measured' });
+        startId = 'n1';
+      }
+    }
+    const r = extendWall(base, startId!, lengthMm, headingDeg, { confidence: 'measured' });
+    commit(get, set, r.model, { pendingNodeId: r.nodeId, selected: { kind: 'node', id: r.nodeId } });
+  },
+  drawRect: (widthMm, depthMm) => {
+    const { model, pendingNodeId } = get();
+    const lv = model.levels[0]!;
+    const start = lv.nodes.find((n) => n.id === pendingNodeId);
+    const origin = start ? { x: start.x, y: start.y } : { x: 0, y: 0 };
+    const r = addRectangle(model, origin, widthMm, depthMm, { confidence: 'measured' });
+    commit(get, set, r.model, { pendingNodeId: r.nodeId, selected: null });
+  },
+  drawSetWallLength: (wallId, lengthMm, anchor) => {
+    commit(get, set, setWallLength(get().model, wallId, lengthMm, anchor));
+  },
+  drawAlignWall: (wallId, axis) => {
+    commit(get, set, alignWall(get().model, wallId, axis));
+  },
+  drawOrthogonalize: () => {
+    commit(get, set, orthogonalize(get().model));
+  },
+  drawMergeNodes: () => {
+    commit(get, set, mergeNearbyNodes(get().model));
+  },
+  drawMoveNode: (nodeId, x, y) => {
+    commit(get, set, moveNode(get().model, nodeId, x, y));
+  },
   toProject: () => {
     const s = get();
     const now = new Date().toISOString();

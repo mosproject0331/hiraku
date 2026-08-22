@@ -15,3 +15,15 @@ export type { MeasureSuggestion } from './measure';
 export { initialBackdrop, calibrateBackdrop, backdropSizeMm } from './backdrop';
 export { buildRenovationScene, interiorCameras, FINISHES } from './scene';
 export type { RenovationScene, RoomScene, CameraSpec, Finish, WaterUnit } from './scene';
+export {
+  extendWall,
+  addRectangle,
+  setWallLength,
+  alignWall,
+  moveNode,
+  orthogonalize,
+  mergeNearbyNodes,
+  headingVector,
+  vectorHeading,
+} from './draw';
+export type { DrawResult, DrawOptions } from './draw';
