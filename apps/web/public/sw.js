@@ -6,7 +6,8 @@
  * 置き場所（basePath）は自分の登録位置から拾うので、公開先が変わっても直さなくていい。
  */
 
-const VERSION = 'hiraku-2026-08-22-3';
+// 書き出しのたびに置き換わる。これが変わると先読みを取り直す
+const VERSION = 'hiraku-__BUILD__';
 const SHELL = `${VERSION}-shell`;
 const ASSETS = `${VERSION}-assets`;
 const PAGES = `${VERSION}-pages`;
