@@ -13,6 +13,7 @@ import {
 import { DIY_CLASS_LABEL, estimatePlan, type PlanEstimate } from '@hiraku/estimate';
 import type { HearingPlan } from '@hiraku/llm';
 import { askHearing } from '@/lib/ai';
+import PlanPerspective from '@/components/PlanPerspective';
 import { useEditor } from '@/lib/store';
 
 function yen(n: number): string {
@@ -55,6 +56,13 @@ function PlanCard({ plan, model }: { plan: HearingPlan; model: SpaceModel }) {
     <div className="rounded-lg border border-slate-300 bg-white p-4">
       <div className="text-lg font-bold">{plan.name}</div>
       <p className="mt-1 text-sm text-slate-600">{plan.intent}</p>
+
+      <PlanPerspective
+        model={model}
+        ops={plan.ops}
+        planName={plan.name}
+        desiredUse={useEditor.getState().lastDiagnosis?.input.desiredUse}
+      />
 
       <ul className="mt-3 list-disc pl-5 text-sm">
         {plan.ops.map((op, i) => (
