@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { initialBackdrop } from '@hiraku/core';
-import { extractFrames, imageSize, persistImage, type ExtractedFrame } from '@/lib/video-frames';
+import { extractFrames, imageSize, toStorableDataUrl, type ExtractedFrame } from '@/lib/video-frames';
 import { useEditor } from '@/lib/store';
 
 /** 動画のコマ／間取り図の写真を読み込んで、なぞるための下絵にする */
@@ -28,8 +28,7 @@ export default function BackdropLoader({ compact = false }: { compact?: boolean 
         setMsg('間取りが一番わかるコマを選んでください。');
       } else {
         setMsg('読み込んでいます…');
-        const url = await persistImage(file, file.name);
-        await apply(url);
+        await apply(await toStorableDataUrl(file));
       }
     } catch (e) {
       setMsg(e instanceof Error ? e.message : '読み込みに失敗しました');
@@ -49,11 +48,11 @@ export default function BackdropLoader({ compact = false }: { compact?: boolean 
 
   async function pick(f: ExtractedFrame) {
     setBusy(true);
-    setMsg('保存しています…');
+    setMsg('取り込んでいます…');
     try {
-      await apply(await persistImage(f.blob, 'frame.jpg'));
+      await apply(await toStorableDataUrl(f.blob));
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : '保存に失敗しました');
+      setMsg(e instanceof Error ? e.message : '取り込みに失敗しました');
     } finally {
       setBusy(false);
     }

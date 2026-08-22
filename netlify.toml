@@ -1,9 +1,14 @@
-# Netlify で公開するときの設定。
-#   1. https://app.netlify.com で「Add new site」→ このリポジトリを指定
-#   2. 環境変数に ANTHROPIC_API_KEY と LLM_MODE=live を入れると実AIに繋がる（未設定ならモックで動く）
-# 注意: プロジェクトの保存(/api/projects)はサーバーのファイルに書くため、
-#       公開環境では再デプロイで消えます。ブラウザ側(localStorage)には残ります。
-#       本格運用するなら Repository を Cloudflare D1 等に差し替えてください（NEXT_STEPS参照）。
+# HIRAKU を Netlify で公開するための設定
+#
+# 保存されるもの: すべて利用者のブラウザの中（localStorage）です。
+#   サーバーは何も保存しません。物件の住所などがサーバーに残ることはありません。
+#
+# 環境変数（Netlify の Site settings → Environment variables）:
+#   ANTHROPIC_API_KEY   実際のAIに繋ぐ場合のみ。未設定ならモックで全機能が動きます
+#   LLM_MODE=live       上のキーとセットで指定したときだけ実AIになります
+#   ※ 公開サイトで live にすると、訪問者の操作でAPI利用料が発生します。
+#     簡易のレート制限は入れていますが、まずは未設定（モック）での公開を推奨します。
+
 [build]
   command = "pnpm install --dangerously-allow-all-builds && pnpm --filter web build"
   publish = "apps/web/.next"
@@ -14,3 +19,11 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "SAMEORIGIN"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"

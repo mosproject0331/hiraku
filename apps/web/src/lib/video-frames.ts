@@ -82,14 +82,42 @@ function seek(video: HTMLVideoElement, t: number): Promise<void> {
   });
 }
 
-/** 画像ファイル or Blob をサーバーに保存して、永続URLをもらう */
-export async function persistImage(blob: Blob, filename = 'frame.jpg'): Promise<string> {
-  const fd = new FormData();
-  fd.append('file', new File([blob], filename, { type: blob.type || 'image/jpeg' }));
-  const res = await fetch('/api/media', { method: 'POST', body: fd });
-  const data = (await res.json()) as { frames?: string[]; error?: string };
-  if (!res.ok || !data.frames?.[0]) throw new Error(data.error ?? '保存できませんでした');
-  return data.frames[0];
+/**
+ * 下絵として保存できる形（データURL）に変換する。
+ * サーバーに送らないので、公開環境でも・オフラインでも同じように動く。
+ * 端末の保存領域に収まるよう、長辺1400px / JPEG品質0.82 に落とす。
+ */
+export async function toStorableDataUrl(
+  source: Blob | File,
+  maxEdge = 1400,
+  quality = 0.82,
+): Promise<string> {
+  const url = URL.createObjectURL(source);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('画像を開けませんでした'));
+      i.src = url;
+    });
+    const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas を使えませんでした');
+    ctx.drawImage(img, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+    // 端末の保存領域(おおむね5MB)を圧迫しすぎないよう上限を設ける
+    if (dataUrl.length > 3_000_000) {
+      return canvas.toDataURL('image/jpeg', 0.6);
+    }
+    return dataUrl;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 export async function imageSize(src: string): Promise<{ w: number; h: number }> {

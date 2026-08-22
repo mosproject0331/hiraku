@@ -3,6 +3,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Project } from '@hiraku/core';
+import {
+  exportProject,
+  getProject,
+  listProjects,
+  removeProject,
+  saveProject,
+  type ProjectSummary,
+} from '@/lib/repo-client';
 import { runDiagnosis } from '@hiraku/rules';
 import { renderDiagnosisReport, renderSurveyReport } from '@hiraku/report';
 import { estimatePlan } from '@hiraku/estimate';
@@ -16,40 +24,43 @@ type Tab = 'overview' | 'diagnosis' | 'survey' | 'plans';
 export default function ProjectPage() {
   const s = useEditor();
   const [tab, setTab] = useState<Tab>('overview');
-  const [list, setList] = useState<{ id: string; name: string; updatedAt: string }[]>([]);
+  const [list, setList] = useState<ProjectSummary[]>([]);
   const [saveMsg, setSaveMsg] = useState('');
   const [qa, setQa] = useState<{ q: string; a: string }[]>([]);
   const [question, setQuestion] = useState('');
   const [busy, setBusy] = useState(false);
 
-  async function refreshList() {
-    try {
-      setList(await (await fetch('/api/projects')).json());
-    } catch {
-      setList([]);
-    }
+  function refreshList() {
+    setList(listProjects());
   }
   useEffect(() => {
-    void refreshList();
+    refreshList();
   }, []);
 
-  async function save() {
+  function save() {
     const project = s.toProject();
     useEditor.setState({ projectId: project.id });
-    const res = await fetch('/api/projects', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(project),
-    });
-    setSaveMsg(res.ok ? '保存しました(' + new Date().toLocaleTimeString('ja-JP') + ')' : '保存に失敗しました');
-    void refreshList();
+    const res = saveProject(project);
+    setSaveMsg(
+      res.ok
+        ? '保存しました（' + new Date().toLocaleTimeString('ja-JP') + '／この端末の中だけに残ります）'
+        : res.error,
+    );
+    refreshList();
   }
 
-  async function load(id: string) {
-    const res = await fetch('/api/projects/' + id);
-    if (!res.ok) return;
-    s.hydrateProject((await res.json()) as Project);
+  function load(id: string) {
+    const p = getProject(id);
+    if (!p) return;
+    s.hydrateProject(p);
     setSaveMsg('読み込みました');
+  }
+
+  function remove(id: string, name: string) {
+    if (!window.confirm(`「${name}」を削除します。元に戻せません。よろしいですか？`)) return;
+    removeProject(id);
+    refreshList();
+    setSaveMsg('削除しました');
   }
 
   async function ask() {
@@ -122,8 +133,9 @@ export default function ProjectPage() {
           placeholder="物件・プロジェクト名"
           className="w-56 rounded border border-slate-300 px-3 py-1.5 text-sm"
         />
-        <button onClick={() => void save()} className="rounded bg-slate-800 px-3 py-1.5 text-sm text-white hover:bg-slate-700">
-          保存
+        <button onClick={save} className="hb-btn hb-dark">保存</button>
+        <button onClick={() => exportProject(s.toProject())} className="hb-btn hb-outline">
+          書き出す
         </button>
         <span className="text-xs text-slate-500">{saveMsg}</span>
         <div className="ml-auto flex overflow-hidden rounded-md border border-slate-300">
@@ -144,14 +156,28 @@ export default function ProjectPage() {
           <div className="mx-auto max-w-4xl space-y-6 px-6 py-6">
             <section className="rounded-lg border border-slate-300 bg-white p-4">
               <h2 className="font-semibold">保存済みプロジェクト</h2>
-              {list.length === 0 && <p className="mt-1 text-sm text-slate-400">まだありません。右上の「保存」で現在の状態を保存できます。</p>}
+              <p className="text-xs text-slate-500">
+                この端末のブラウザの中だけに保存されます。サーバーには送られないので、
+                入力した住所などが他の人に見られることはありません。
+                別の端末に移すときは「書き出す」でファイルにしてください。
+              </p>
+              {list.length === 0 && <p className="mt-2 text-sm text-slate-400">まだありません。右上の「保存」で現在の状態を残せます。</p>}
               <ul className="mt-2 divide-y divide-slate-100">
                 {list.map((p) => (
-                  <li key={p.id} className="flex items-center justify-between py-1.5 text-sm">
+                  <li key={p.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
                     <span>{p.name}<span className="ml-2 text-xs text-slate-400">{p.updatedAt.slice(0, 16).replace('T', ' ')}</span></span>
-                    <button onClick={() => void load(p.id)} className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
-                      読み込む
-                    </button>
+                    <span className="flex gap-1">
+                      <button onClick={() => load(p.id)} className="hb-btn hb-outline" style={{ fontSize: 12, padding: '6px 12px' }}>
+                        読み込む
+                      </button>
+                      <button
+                        onClick={() => remove(p.id, p.name)}
+                        className="hb-btn hb-outline"
+                        style={{ fontSize: 12, padding: '6px 12px', color: '#a32d2d' }}
+                      >
+                        削除
+                      </button>
+                    </span>
                   </li>
                 ))}
               </ul>
