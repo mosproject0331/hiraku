@@ -266,6 +266,16 @@ export function interiorCameras(model: SpaceModel, max = 3): CameraSpec[] {
     .filter((x) => x.f)
     .sort((a, b) => b.r.areaM2 - a.r.areaM2);
 
+  // 「部屋1」のような仮の名前しか無いときは、その部屋の性格で呼ぶ
+  const generic = /^部屋\d+$/;
+  const labelFor = (r: Room, hasEntrance: boolean, windows: number, index: number): string => {
+    if (!generic.test(r.name)) return `${r.name}から`;
+    if (hasEntrance) return '入ってすぐから';
+    if (windows >= 2) return '光の入る部屋から';
+    if (windows === 0) return '窓のない部屋から';
+    return `${r.tatami}畳ほどの部屋から`;
+  };
+
   for (const { r, f } of ordered) {
     if (out.length >= max) break;
     const pts: XY[] = f!.nodeIds.map((id) => nodeById.get(id)!).filter(Boolean);
@@ -332,9 +342,16 @@ export function interiorCameras(model: SpaceModel, max = 3): CameraSpec[] {
     const depth = Math.max(1.2, ((best?.far ?? dist(stand, look)) * 0.7 + dist(stand, look) * 0.3) / 1000);
     const fovDeg = Math.max(42, Math.min(64, 78 - depth * 6.2));
 
+    const winCount = r.wallLoop.reduce(
+      (n, wid) => n + level.openings.filter((o) => o.wallId === wid && o.kind === 'window').length,
+      0,
+    );
+    const entrance = r.wallLoop.some((wid) =>
+      level.openings.some((o) => o.wallId === wid && o.kind === 'entrance'),
+    );
     out.push({
       id: 'cam-' + r.id,
-      label: `${r.name}から`,
+      label: labelFor(r, entrance, winCount, out.length),
       position: [stand.x / 1000, EYE, stand.y / 1000],
       target: [look.x / 1000, EYE, look.y / 1000],
       fovDeg,

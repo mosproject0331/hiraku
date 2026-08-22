@@ -1,4 +1,7 @@
-import { pointInPolygon, type Finish, type RenovationScene, type RoomScene, type XY } from '@hiraku/core';
+import {
+  bearingToPlanHeading, pointInPolygon, solarPosition, sunTimes,
+  type Finish, type RenovationScene, type RoomScene, type Site, type XY,
+} from '@hiraku/core';
 
 /**
  * 図面のデータを「建物として組み立てるための部品表」に変換する。
@@ -139,6 +142,10 @@ export function buildBuilding(
   scene: RenovationScene,
   light: LightKey = 'noon',
   view?: ViewHint,
+  /** 敷地が決まっていれば、太陽は本当の緯度経度と方位から出す */
+  site?: Site | null,
+  /** 見たい季節（その年の日付）。既定は今日 */
+  when?: Date,
 ): Building | null {
   const level = scene.model.levels[0];
   if (!level) return null;
@@ -307,7 +314,7 @@ export function buildBuilding(
     posts: [...postAt.values()],
     beams,
     windows,
-    sun: sunFor(windows, bounds, light, view),
+    sun: site ? realSun(site, bounds, light, when) : sunFor(windows, bounds, light, view),
     bounds,
     rooms,
   };
@@ -368,4 +375,60 @@ function sunFor(windows: WindowLight[], b: Bounds, key: LightKey, view?: ViewHin
     intensity: s.intensity,
     color: s.color,
   };
+}
+
+/**
+ * 敷地が決まっているときの太陽。
+ *
+ * 緯度経度と日付から本当の位置を出し、図面の向き（方位）に直して置く。
+ * 「朝」「夕」は時計の時刻ではなく、その日の日の出・日の入りから決める。
+ * 冬の低い光と夏の高い光が、そのまま絵に出る。
+ */
+function realSun(site: Site, b: Bounds, key: LightKey, when?: Date): SunSpec {
+  const day = when ?? new Date();
+  const t = sunTimes(day, site.lat, site.lon);
+  const at =
+    key === 'noon'
+      ? t.noon
+      : key === 'morning'
+        ? new Date((t.sunrise ?? t.noon).getTime() + 2 * 3600000)
+        : key === 'evening'
+          ? new Date((t.sunset ?? t.noon).getTime() - 60 * 60000)
+          : new Date((t.sunset ?? t.noon).getTime() + 90 * 60000);
+
+  const pos = solarPosition(at, site.lat, site.lon);
+  const alt = Math.max(key === 'night' ? -12 : 2, pos.altitudeDeg);
+  // 方位（真北から時計回り）を、図面の向き（0=右, 90=下）に直す
+  const h = (bearingToPlanHeading(site, pos.azimuthDeg) * Math.PI) / 180;
+  const dist = b.r * 2 + 5;
+  const night = key === 'night' || pos.altitudeDeg <= 0;
+  const setting = SUN_SETTING[key];
+
+  return {
+    position: [
+      b.cx + Math.cos(h) * dist * Math.cos((alt * Math.PI) / 180),
+      Math.max(1.5, dist * Math.sin((Math.max(4, alt) * Math.PI) / 180)),
+      b.cz + Math.sin(h) * dist * Math.cos((alt * Math.PI) / 180),
+    ],
+    radius: b.r + 1.2,
+    distance: dist,
+    // 低い太陽は弱く、高い太陽は強く。実際の光の当たり方に合わせる
+    intensity: night ? 0.06 : setting.intensity * (0.55 + 0.45 * Math.sin((Math.max(4, alt) * Math.PI) / 180)),
+    color: night ? '#9fb4d8' : alt < 15 ? '#ffc48a' : alt < 35 ? '#ffe2b8' : '#fff4e2',
+  };
+}
+
+/** 敷地が決まっているとき、その日その時刻の太陽を言葉にする */
+export function describeSun(site: Site, key: LightKey, when?: Date): string {
+  const day = when ?? new Date();
+  const t = sunTimes(day, site.lat, site.lon);
+  const at =
+    key === 'noon' ? t.noon
+    : key === 'morning' ? new Date((t.sunrise ?? t.noon).getTime() + 2 * 3600000)
+    : key === 'evening' ? new Date((t.sunset ?? t.noon).getTime() - 60 * 60000)
+    : new Date((t.sunset ?? t.noon).getTime() + 90 * 60000);
+  const p = solarPosition(at, site.lat, site.lon);
+  const hh = `${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`;
+  if (p.altitudeDeg <= 0) return `${hh}／日の入りのあと`;
+  return `${hh}／高さ ${p.altitudeDeg.toFixed(0)}度`;
 }

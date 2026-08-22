@@ -22,6 +22,7 @@ import {
   type Opening,
   type Project,
   type RenovationPlan,
+  type Site,
   type SpaceModel,
 } from '@hiraku/core';
 import type { DesiredUse, DiagnosisInput, DiagnosisReport, Verdict } from '@hiraku/rules';
@@ -123,6 +124,8 @@ interface EditorState {
   checkUse: DesiredUse | null;
   /** 御見積書。案件ごとに1通を持ち回る */
   quote: QuoteDoc | null;
+  /** 敷地。どこに、どの向きで建っているか */
+  site: Site | null;
   /** ヒアリングで集めた、その人の側の条件 */
   hearing: HearingProfile;
   /** 組み上がった改修案 */
@@ -170,6 +173,7 @@ interface EditorState {
   setCheckUse: (u: DesiredUse | null) => void;
   setQuote: (q: QuoteDoc | null) => void;
   patchQuote: (p: Partial<QuoteDoc>) => void;
+  setSite: (s: Site | null) => void;
   /** ヒアリングの答えを1つ入れる */
   answerHearing: (questionId: string, raw: Answer) => void;
   /** ヒアリングをやり直す */
@@ -220,6 +224,7 @@ export const useEditor = create<EditorState>()(
   customChecks: [],
   checkUse: null,
   quote: null,
+  site: null,
   hearing: {},
   proposals: [],
   priceBook: {},
@@ -379,6 +384,7 @@ export const useEditor = create<EditorState>()(
   clearChecklist: () => set({ checklist: {}, customChecks: [] }),
   setCheckUse: (checkUse) => set({ checkUse }),
   setQuote: (quote) => set({ quote }),
+  setSite: (site) => set({ site }),
   answerHearing: (questionId, raw) => {
     const q = QUESTIONS.find((x) => x.id === questionId);
     if (!q) return;
@@ -470,6 +476,7 @@ export const useEditor = create<EditorState>()(
       checklist: s.checklist,
       customChecks: s.customChecks,
       quote: s.quote ?? undefined,
+      site: s.site ?? undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -493,6 +500,7 @@ export const useEditor = create<EditorState>()(
       checklist: p.checklist ?? {},
       customChecks: p.customChecks ?? [],
       quote: (p.quote as QuoteDoc | undefined) ?? null,
+      site: (p.site as Site | undefined) ?? null,
       history: [],
       future: [],
       selected: null,
@@ -541,6 +549,7 @@ export const useEditor = create<EditorState>()(
         customChecks: s.customChecks,
         checkUse: s.checkUse,
         quote: s.quote,
+        site: s.site,
         hearing: s.hearing,
         proposals: s.proposals,
         priceBook: s.priceBook,

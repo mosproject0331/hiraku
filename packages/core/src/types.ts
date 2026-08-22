@@ -1,3 +1,5 @@
+import type { Site } from './geo';
+
 export type Confidence = 'estimated' | 'hypothesis' | 'measured';
 
 export interface Node {
@@ -179,6 +181,8 @@ export interface Project {
   customChecks?: CustomCheck[];
   /** 拡張: 御見積書。型は packages/report 側なので unknown で預かる */
   quote?: unknown;
+  /** 拡張: 敷地。どこに、どの向きで建っているか */
+  site?: Site;
   createdAt: string;
   updatedAt: string;
 }

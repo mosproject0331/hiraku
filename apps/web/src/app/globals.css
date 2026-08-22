@@ -820,3 +820,78 @@ body{
 .intake-title,.ask-q,.sheet-head h2,.step-head h4,.sheet-line{
   word-break:keep-all;overflow-wrap:break-word;line-break:strict;
 }
+
+/* ── 敷地 ──────────────────────────────────── */
+.sitepage .ask-input{margin-top:18px}
+.site-err{margin-top:10px;font-size:12.5px;line-height:1.8}
+.site-results{list-style:none;margin:10px 0 0;padding:0;border-top:1px solid var(--border-soft)}
+.site-results li{border-bottom:1px solid var(--border-soft)}
+.site-results button{
+  display:flex;justify-content:space-between;align-items:baseline;gap:12px;width:100%;
+  background:none;border:0;padding:13px 2px;cursor:pointer;text-align:left;
+  font-size:14px;color:var(--fg);min-height:48px;
+}
+.site-results em{font-style:normal;font-size:11px;color:var(--fg-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.site-map-wrap{margin-top:20px}
+.site-map{
+  position:relative;overflow:hidden;touch-action:none;cursor:grab;
+  aspect-ratio:1/1;max-height:70vh;background:var(--sunken);
+  border:1px solid var(--border);
+}
+.site-map:active{cursor:grabbing}
+/* Tailwind の既定で img は max-width:100% になる。タイルは引き伸ばして使うので外す */
+.site-map>img{position:absolute;max-width:none;user-select:none;-webkit-user-drag:none}
+.site-overlay{position:absolute;inset:0;pointer-events:none}
+.site-empty{
+  position:absolute;inset:0;display:grid;place-items:center;margin:0;
+  font-size:12.5px;color:var(--fg-3);
+}
+.site-compass{position:absolute;top:10px;right:12px;opacity:.9;filter:drop-shadow(0 1px 2px rgba(255,255,255,.9))}
+.site-scalebar{
+  position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:7px;
+  filter:drop-shadow(0 1px 2px rgba(255,255,255,.9));
+}
+.site-scalebar span{display:block;height:3px;background:#1e1e24;border-left:1px solid #1e1e24;border-right:1px solid #1e1e24}
+.site-scalebar em{font-style:normal;font-size:10.5px;font-weight:600;color:#1e1e24}
+.site-credit{
+  position:absolute;right:6px;bottom:5px;font-size:9.5px;color:#1e1e24;
+  background:rgba(255,255,255,.72);padding:1px 5px;border-radius:2px;
+}
+
+.site-controls{margin-top:12px}
+.site-zoom{font-size:11.5px;color:var(--fg-3);font-variant-numeric:tabular-nums;align-self:center;white-space:nowrap}
+.site-rot{margin-top:14px}
+.site-rot label{display:block}
+.site-rot label span{display:block;font-size:11px;letter-spacing:.06em;color:var(--fg-3);margin-bottom:7px}
+.site-rot input[type=range]{width:100%;height:36px}
+.site-deg{
+  align-self:center;font-size:13px;font-variant-numeric:tabular-nums;margin-left:4px;white-space:nowrap;
+}
+
+.site-facts{margin-top:26px;padding-top:16px;border-top:1px solid var(--border)}
+.site-facts h3,.site-sun h3{
+  margin:0 0 10px;font-size:10.5px;letter-spacing:.18em;color:var(--fg-3);font-weight:600;
+}
+.site-facts dl{margin:0}
+.site-facts dl>div{
+  display:grid;grid-template-columns:7em minmax(0,1fr);gap:12px;
+  padding:8px 0;border-bottom:1px solid var(--border-soft);
+}
+.site-facts dt{font-size:11.5px;color:var(--fg-3)}
+.site-facts dd{margin:0;font-size:13.5px;line-height:1.7}
+
+.site-sun{margin-top:24px;padding:15px 17px;background:var(--sunken);border-left:2px solid var(--fg)}
+.site-sunline{margin:10px 0 0;font-size:14px;line-height:1.8}
+.site-sunline em{font-style:normal;color:var(--fg-3);font-size:12px}
+.site-sunnote{margin:7px 0 0;font-size:11.5px;line-height:1.85;color:var(--fg-2)}
+
+.print-only{display:none}
+@media print{
+  .no-print{display:none !important}
+  .print-only{display:block}
+  .appnav{display:none !important}
+  .sitepage{max-width:none;padding:0}
+  .site-map{aspect-ratio:auto;height:150mm;max-height:none;page-break-inside:avoid}
+  .site-facts{page-break-inside:avoid}
+}

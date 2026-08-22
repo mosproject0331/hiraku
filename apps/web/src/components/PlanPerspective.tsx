@@ -6,9 +6,10 @@ import { buildRenovationScene, type RenovationOp, type SpaceModel } from '@hirak
 import {
   buildPrompt, getApiKey, renderPerspective, setApiKey, type PerspectiveResult,
 } from '@/lib/perspective';
-import type { LightKey } from '@/lib/archviz';
+import { describeSun, type LightKey } from '@/lib/archviz';
 import { detectTier, profileFor, type Tier } from '@/lib/quality';
 import type { SceneViewHandle } from '@/components/SceneView';
+import { useEditor } from '@/lib/store';
 
 const SceneView = dynamic(() => import('@/components/SceneView'), { ssr: false });
 
@@ -29,6 +30,15 @@ const LIGHTS: { id: LightKey; label: string; phrase: string }[] = [
   { id: 'noon', label: '昼', phrase: 'bright diffuse daylight, late morning, sun patch on the floor' },
   { id: 'evening', label: '夕', phrase: 'warm low evening sun, deep orange light through the openings' },
   { id: 'night', label: '夜', phrase: 'night, only the interior lamps are lit, warm and quiet, dark windows' },
+];
+
+/** 季節。空き家は冬の光でどう見えるかが効く */
+const SEASONS: { id: string; label: string; month: number; day: number }[] = [
+  { id: 'today', label: '今日', month: 0, day: 0 },
+  { id: 'spring', label: '春分', month: 3, day: 21 },
+  { id: 'summer', label: '夏至', month: 6, day: 21 },
+  { id: 'autumn', label: '秋分', month: 9, day: 23 },
+  { id: 'winter', label: '冬至', month: 12, day: 21 },
 ];
 
 const TIERS: { id: Tier | 'auto'; label: string }[] = [
@@ -55,6 +65,7 @@ export default function PlanPerspective({
   const [keyInput, setKeyInput] = useState('');
   const [needKey, setNeedKey] = useState(false);
   const [pick, setPick] = useState<Tier | 'auto'>('auto');
+  const [season, setSeason] = useState('today');
   const [auto, setAuto] = useState<Tier>('mid');
   const [live, setLive] = useState(false);
   const viewRef = useRef<SceneViewHandle>(null);
@@ -89,6 +100,12 @@ export default function PlanPerspective({
     };
   }, []);
 
+  const site = useEditor((s) => s.site);
+  const when = useMemo(() => {
+    const s = SEASONS.find((x) => x.id === season);
+    if (!s || !s.month) return undefined;
+    return new Date(new Date().getFullYear(), s.month - 1, s.day, 12, 0, 0);
+  }, [season]);
   const quality = useMemo(() => profileFor(pick === 'auto' ? auto : pick), [pick, auto]);
   const camera = scene.cameras[camIndex];
 
@@ -139,12 +156,18 @@ export default function PlanPerspective({
             light={light}
             quality={quality}
             use={desiredUse}
+            site={site}
+            when={when}
           />
         ) : (
           <div className="persp-idle">3D</div>
         )}
         <span className="persp-tag">{result ? 'AI生成のイメージ' : '3D（実寸）'}</span>
-        {!result && live && <span className="persp-hint">横になぞると見回せます</span>}
+        {!result && live && (
+          <span className="persp-hint">
+            {site ? describeSun(site, light, when) : '横になぞると見回せます'}
+          </span>
+        )}
       </div>
 
       <div className="chiprow" role="group" aria-label="視点">
@@ -173,6 +196,18 @@ export default function PlanPerspective({
           </button>
         ))}
         <span className="chipgap" />
+        {site &&
+          SEASONS.map((s) => (
+            <button
+              key={s.id}
+              className={'chip chip-q' + (s.id === season ? ' on' : '')}
+              onClick={() => setSeason(s.id)}
+              title="季節で光の高さが変わります"
+            >
+              {s.label}
+            </button>
+          ))}
+        {site && <span className="chipgap" />}
         {TIERS.map((t) => (
           <button
             key={t.id}
@@ -237,6 +272,9 @@ export default function PlanPerspective({
       {error && <p className="hb-warn" style={{ marginTop: 10, fontSize: 12.5 }}>{error}</p>}
 
       <p className="persp-note">
+        {site
+          ? `太陽は ${site.address || 'この敷地'} の緯度経度と、決めた方位から出しています。`
+          : '敷地を決めると、太陽が本当の方位と季節にそろいます。'}
         3Dは実測・作図した寸法そのものです。家具は広さの見当をつけるための添景で、寸法の指定ではありません。
         写真化したものは仕上がりのイメージで、施工後を約束するものではありません。
       </p>

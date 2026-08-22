@@ -27,3 +27,15 @@ export {
   vectorHeading,
 } from './draw';
 export type { DrawResult, DrawOptions } from './draw';
+export {
+  metersPerPixel,
+  lonLatToPixel,
+  pixelToLonLat,
+  planToLonLat,
+  northHeadingInPlan,
+  bearingToPlanHeading,
+  solarPosition,
+  solarNoon,
+  sunTimes,
+} from './geo';
+export type { Site, SolarPosition, SunTimes } from './geo';

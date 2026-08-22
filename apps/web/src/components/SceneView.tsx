@@ -9,7 +9,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
 import { Bloom, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { ToneMappingMode, type EffectComposer as PostComposer } from 'postprocessing';
-import type { CameraSpec, RenovationScene } from '@hiraku/core';
+import type { CameraSpec, RenovationScene, Site } from '@hiraku/core';
 import { buildBuilding, type Building, type LightKey, type WindowLight } from '@/lib/archviz';
 import { buildShell } from '@/lib/shell';
 import { setFinishTextureSize } from '@/lib/finish-material';
@@ -393,10 +393,14 @@ export interface SceneViewProps {
   quality: QualityProfile;
   /** 用途。家具の並べ方が変わる */
   use?: string;
+  /** 敷地。決まっていれば太陽は本当の位置になる */
+  site?: Site | null;
+  /** 見たい日（季節）。既定は今日 */
+  when?: Date;
 }
 
 const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView(
-  { scene, camera, light = 'noon', quality, use },
+  { scene, camera, light = 'noon', quality, use, site, when },
   ref,
 ) {
   const handle = useRef<SceneViewHandle | null>(null);
@@ -406,8 +410,9 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
   // 素材の細かさは端末に合わせる。作り直しが要るので、組み立ての前に決める
   setFinishTextureSize(quality.texSize);
   const building = useMemo(
-    () => buildBuilding(scene, light, { position: camera.position, target: camera.target }),
-    [scene, light, camera],
+    () =>
+      buildBuilding(scene, light, { position: camera.position, target: camera.target }, site, when),
+    [scene, light, camera, site, when],
   );
   // カメラの前 1.4m には家具を置かない（レンズに被って構図が壊れるため）
   const avoid = useMemo(

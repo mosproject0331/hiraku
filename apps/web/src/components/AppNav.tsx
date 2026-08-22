@@ -9,6 +9,7 @@ const MAIN = [
   { href: '/app/wizard', label: '探す', hint: 'これから物件を探す' },
   { href: '/app/diagnose', label: '診断', hint: '法規制を確かめる' },
   { href: '/app/editor', label: '間取り', hint: '図面をつくる・測る' },
+  { href: '/app/site', label: '敷地', hint: '住所から場所と方位を決める' },
   { href: '/app/plan', label: '改修', hint: '3案と概算' },
   { href: '/app/checklist', label: '内見', hint: '現地で見るところを記録' },
   { href: '/app/survey', label: '調査書', hint: '現況調査報告書' },
