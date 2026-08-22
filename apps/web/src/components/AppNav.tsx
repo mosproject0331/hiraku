@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import LlmStatus from '@/components/LlmStatus';
 
 const MAIN = [
@@ -24,6 +24,13 @@ const SETTINGS = [
 export default function AppNav() {
   const path = usePathname() ?? '';
   const [open, setOpen] = useState(false);
+  const scroller = useRef<HTMLDivElement>(null);
+
+  // 項目が増えて横に流れるので、いま開いている画面を見える位置へ寄せる
+  useEffect(() => {
+    const el = scroller.current?.querySelector('[data-on="true"]');
+    el?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [path]);
   const isHome = path === '/app' || path === '/app/';
 
   return (
@@ -32,7 +39,7 @@ export default function AppNav() {
         <span className="dot" />HIRAKU
       </Link>
 
-      <div className="appnav-scroll">
+      <div className="appnav-scroll" ref={scroller}>
         {MAIN.map((m) => {
           const active = path.startsWith(m.href);
           return (

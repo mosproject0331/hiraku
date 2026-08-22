@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="HIRAKU">
+  <rect width="512" height="512" rx="114" fill="#1e1e24"/>
+  <!-- 開口から差し込む光 -->
+  <path d="M118 138 L118 268 L406 372 L406 214 Z" fill="#ff773c"/>
+  <!-- 開いた戸 -->
+  <rect x="98" y="118" width="26" height="278" rx="7" fill="#f2efe9"/>
+  <!-- 床に落ちた光のふち -->
+  <path d="M118 268 L406 372 L406 396 L118 300 Z" fill="#ffffff" opacity=".16"/>
+</svg>

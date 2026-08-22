@@ -8,6 +8,22 @@ import * as THREE from 'three';
 
 const cache = new Map<string, MaterialMaps>();
 
+/** 手続き素材の一辺のピクセル数。端末に合わせて落とす */
+let texSize = 512;
+/** 変えたときだけ true を返す。呼び出し側が作り直しの要否を判断できるように */
+export function setTextureSize(px: number): boolean {
+  const next = Math.max(128, Math.min(1024, px));
+  if (next === texSize) return false;
+  texSize = next;
+  for (const m of cache.values()) {
+    m.map.dispose();
+    m.roughnessMap.dispose();
+    m.bumpMap.dispose();
+  }
+  cache.clear();
+  return true;
+}
+
 export interface MaterialMaps {
   map: THREE.CanvasTexture;
   roughnessMap: THREE.CanvasTexture;
@@ -16,7 +32,7 @@ export interface MaterialMaps {
   repeatPerMeter: number;
 }
 
-function makeCanvas(size = 512): [HTMLCanvasElement, CanvasRenderingContext2D] {
+function makeCanvas(size = texSize): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -62,7 +78,7 @@ function noise(ctx: CanvasRenderingContext2D, size: number, amount: number, seed
 
 /** 木目（フローリング・板天井・梁） */
 function wood(base: string, plankM: number, seed = 7): MaterialMaps {
-  const S = 512;
+  const S = texSize;
   const [c, ctx] = makeCanvas(S);
   const [rc, rctx] = makeCanvas(S);
   const [bc, bctx] = makeCanvas(S);
@@ -128,7 +144,7 @@ function wood(base: string, plankM: number, seed = 7): MaterialMaps {
 
 /** 畳（い草の織り目＋縁） */
 function tatami(seed = 11): MaterialMaps {
-  const S = 512;
+  const S = texSize;
   const [c, ctx] = makeCanvas(S);
   const [rc, rctx] = makeCanvas(S);
   const [bc, bctx] = makeCanvas(S);
@@ -167,7 +183,7 @@ function tatami(seed = 11): MaterialMaps {
 
 /** 漆喰・塗り壁（コテ跡） */
 function plaster(base: string, seed = 3): MaterialMaps {
-  const S = 512;
+  const S = texSize;
   const [c, ctx] = makeCanvas(S);
   const [rc, rctx] = makeCanvas(S);
   const [bc, bctx] = makeCanvas(S);
@@ -179,7 +195,7 @@ function plaster(base: string, seed = 3): MaterialMaps {
   bctx.fillRect(0, 0, S, S);
   const r = rng(seed);
   // コテのあと
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < Math.round(120 * (S / 512) ** 2); i++) {
     const x = r() * S;
     const y = r() * S;
     const w = 40 + r() * 130;
@@ -207,7 +223,7 @@ function plaster(base: string, seed = 3): MaterialMaps {
 
 /** 土間（三和土・叩き） */
 function earth(seed = 5): MaterialMaps {
-  const S = 512;
+  const S = texSize;
   const [c, ctx] = makeCanvas(S);
   const [rc, rctx] = makeCanvas(S);
   const [bc, bctx] = makeCanvas(S);
@@ -218,7 +234,7 @@ function earth(seed = 5): MaterialMaps {
   bctx.fillStyle = '#808080';
   bctx.fillRect(0, 0, S, S);
   const r = rng(seed);
-  for (let i = 0; i < 2400; i++) {
+  for (let i = 0; i < Math.round(2400 * (S / 512) ** 2); i++) {
     const x = r() * S;
     const y = r() * S;
     const rad = 0.6 + r() * 3.4;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Finish } from '@hiraku/core';
-import { materialMaps } from './textures';
+import { materialMaps, setTextureSize } from './textures';
 
 /**
  * 仕上げ材を three.js のマテリアルにする。
@@ -21,6 +21,13 @@ const BUMP: Record<string, number> = {
   as_is_floor: 0.005,
   ceiling_board: 0.004,
 };
+
+/** 端末に合わせて素材の細かさを決める。変えると作り直しになる */
+export function setFinishTextureSize(px: number): void {
+  if (!setTextureSize(px)) return;
+  for (const m of cache.values()) m.dispose();
+  cache.clear();
+}
 
 export function finishMaterial(f: Finish): THREE.MeshStandardMaterial {
   const hit = cache.get(f.id);

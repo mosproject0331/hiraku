@@ -12,6 +12,7 @@ import { ToneMappingMode } from 'postprocessing';
 import type { CameraSpec, RenovationScene } from '@hiraku/core';
 import { buildBuilding, type Building, type LightKey, type WindowLight } from '@/lib/archviz';
 import { buildShell } from '@/lib/shell';
+import { setFinishTextureSize } from '@/lib/finish-material';
 import { layoutPlants, layoutProps } from '@/lib/entourage';
 import { Entourage, Vegetation } from '@/components/Furniture';
 import { capturePreset, profileFor, type QualityProfile } from '@/lib/quality';
@@ -423,6 +424,8 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
   const handle = useRef<SceneViewHandle | null>(null);
   useImperativeHandle(ref, () => ({ capture: () => handle.current?.capture() ?? Promise.resolve(null) }), []);
 
+  // 素材の細かさは端末に合わせる。作り直しが要るので、組み立ての前に決める
+  setFinishTextureSize(quality.texSize);
   const building = useMemo(() => buildBuilding(scene, light), [scene, light]);
   // カメラの前 1.4m には家具を置かない（レンズに被って構図が壊れるため）
   const avoid = useMemo(

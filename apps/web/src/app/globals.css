@@ -23,7 +23,7 @@
   --r-pill:100px;
   --ease:cubic-bezier(.22,1,.36,1);
   --dur:.2s;
-  --font:"Geist","Noto Sans JP",system-ui,-apple-system,sans-serif;
+  --font:var(--font-geist),"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","BIZ UDPGothic",system-ui,-apple-system,sans-serif;
   --maxw:1200px;
 --tex-canvas:url("/img/tex-canvas.png");
 }
@@ -177,7 +177,8 @@ body{
 @media(max-width:860px){ .quickbar-note{display:none} }
 @media(max-width:520px){
   .quickbar-in{gap:10px}
-  .quickbar-cta{font-size:12.5px;padding:7px 13px}
+  .quickbar-cta{font-size:12.5px;padding:0 14px;min-height:40px;display:inline-flex;align-items:center}
+  .quickbar-resume{min-height:40px;display:inline-flex;align-items:center}
 }
 /* 直行バーの下に紹介ページのヘッダーが重ならないように */
 .landing header{top:46px !important}
@@ -268,7 +269,7 @@ body{
 
   /* 指で押せる大きさを確保（Appleの目安44px、最低でも40px） */
   button, a.hb-btn, .hb-btn, input[type="button"], input[type="submit"]{ min-height:40px }
-  .appnav-item{ min-height:36px; display:inline-flex; align-items:center }
+  .appnav-item{ min-height:40px; display:inline-flex; align-items:center }
   input[type="checkbox"], input[type="radio"]{ width:20px; height:20px }
 
   /* 横に長い表・コード・図はその中だけで横スクロールさせる */
@@ -550,4 +551,20 @@ body{
 @media (max-width:520px){
   .qt-grid{grid-template-columns:1fr}
   .qt-f.narrow{max-width:none}
+}
+
+/* ── 携帯での動きを軽くする ───────────────────────── */
+/* すりガラスは走査のたびに描き直しになる。要のナビだけに残す */
+@media (max-width:719px){
+  .chk-head,.qt-bar,.chk-foot{ backdrop-filter:none; background:var(--bg) }
+}
+/* 画面の外に出ている項目は描かない（長い一覧の走査が軽くなる） */
+.chk-item,.qt-line{ content-visibility:auto; contain-intrinsic-size:auto 132px }
+.qt-fold{ content-visibility:auto; contain-intrinsic-size:auto 64px }
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important;animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;scroll-behavior:auto !important;
+  }
 }

@@ -31,7 +31,7 @@ export interface QualityProfile {
 const PROFILES: Record<Tier, QualityProfile> = {
   low: {
     tier: 'low', dprMax: 1.5, shadows: true, shadowMap: 1024, softShadows: false,
-    ao: false, transmission: false, msaa: 0, bloom: false, entourage: true, texSize: 512,
+    ao: false, transmission: false, msaa: 0, bloom: false, entourage: true, texSize: 256,
   },
   mid: {
     tier: 'mid', dprMax: 2, shadows: true, shadowMap: 2048, softShadows: true,
