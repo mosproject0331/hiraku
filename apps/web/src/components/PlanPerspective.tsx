@@ -1,15 +1,13 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { buildRenovationScene, type RenovationOp, type SpaceModel } from '@hiraku/core';
 import {
-  buildPrompt,
-  getApiKey,
-  renderPerspective,
-  setApiKey,
-  type PerspectiveResult,
+  buildPrompt, getApiKey, renderPerspective, setApiKey, type PerspectiveResult,
 } from '@/lib/perspective';
+import type { LightKey } from '@/lib/archviz';
+import { detectTier, profileFor, type Tier } from '@/lib/quality';
 import type { SceneViewHandle } from '@/components/SceneView';
 
 const SceneView = dynamic(() => import('@/components/SceneView'), { ssr: false });
@@ -26,18 +24,22 @@ const USE_LABELS: Record<string, string> = {
   home_plus: 'a home with a small shop',
 };
 
-const LIGHTS = [
-  { id: 'morning', label: '朝の光', phrase: 'early morning light, long soft shadows' },
-  { id: 'noon', label: '昼の光', phrase: 'bright diffuse daylight, late morning' },
-  { id: 'evening', label: '夕方', phrase: 'warm low evening sun raking across the floor' },
-  { id: 'night', label: '夜', phrase: 'night, only the interior lights are on, warm and quiet' },
-] as const;
+const LIGHTS: { id: LightKey; label: string; phrase: string }[] = [
+  { id: 'morning', label: '朝', phrase: 'early morning sun, long soft shadows raking across the floor' },
+  { id: 'noon', label: '昼', phrase: 'bright diffuse daylight, late morning, sun patch on the floor' },
+  { id: 'evening', label: '夕', phrase: 'warm low evening sun, deep orange light through the openings' },
+  { id: 'night', label: '夜', phrase: 'night, only the interior lamps are lit, warm and quiet, dark windows' },
+];
+
+const TIERS: { id: Tier | 'auto'; label: string }[] = [
+  { id: 'auto', label: '自動' },
+  { id: 'low', label: '軽い' },
+  { id: 'mid', label: '標準' },
+  { id: 'high', label: 'きれい' },
+];
 
 export default function PlanPerspective({
-  model,
-  ops,
-  planName,
-  desiredUse,
+  model, ops, planName, desiredUse,
 }: {
   model: SpaceModel;
   ops: RenovationOp[];
@@ -46,15 +48,50 @@ export default function PlanPerspective({
 }) {
   const scene = useMemo(() => buildRenovationScene(model, ops), [model, ops]);
   const [camIndex, setCamIndex] = useState(0);
-  const [light, setLight] = useState<(typeof LIGHTS)[number]>(LIGHTS[1]);
+  const [light, setLight] = useState<LightKey>('noon');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<PerspectiveResult | null>(null);
   const [error, setError] = useState('');
   const [keyInput, setKeyInput] = useState('');
   const [needKey, setNeedKey] = useState(false);
+  const [pick, setPick] = useState<Tier | 'auto'>('auto');
+  const [auto, setAuto] = useState<Tier>('mid');
+  const [live, setLive] = useState(false);
   const viewRef = useRef<SceneViewHandle>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => setAuto(detectTier()), []);
+
+  // 画面に入ったときだけ3Dを動かす。携帯でカードを並べても電池と描画が持つように
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setLive(true);
+      return;
+    }
+    let off: ReturnType<typeof setTimeout> | null = null;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e?.isIntersecting) {
+          if (off) clearTimeout(off);
+          off = null;
+          setLive(true);
+        } else if (!off) {
+          off = setTimeout(() => setLive(false), 4000);
+        }
+      },
+      { rootMargin: '150px 0px' },
+    );
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      if (off) clearTimeout(off);
+    };
+  }, []);
+
+  const quality = useMemo(() => profileFor(pick === 'auto' ? auto : pick), [pick, auto]);
   const camera = scene.cameras[camIndex];
+
   if (!camera) {
     return (
       <p className="hb-faint" style={{ fontSize: 12.5, lineHeight: 1.8 }}>
@@ -70,16 +107,13 @@ export default function PlanPerspective({
       setNeedKey(true);
       return;
     }
-    const png = viewRef.current?.capture();
-    if (!png) {
-      setError('3Dの画面を取り込めませんでした');
-      return;
-    }
     setBusy(true);
     try {
+      const png = await viewRef.current?.capture();
+      if (!png) throw new Error('3Dの画面を取り込めませんでした');
       const prompt = buildPrompt(scene, camera!.label, {
         use: desiredUse ? USE_LABELS[desiredUse] : undefined,
-        light: light.phrase,
+        light: LIGHTS.find((l) => l.id === light)?.phrase,
       });
       setResult(await renderPerspective(png, prompt, key));
     } catch (e) {
@@ -91,45 +125,75 @@ export default function PlanPerspective({
 
   return (
     <div className="persp">
-      <div className="persp-view">
+      <div className="persp-view" ref={boxRef}>
         {result ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={result.dataUrl} alt={`${planName}のパース（AI生成）`} />
+        ) : live ? (
+          <SceneView
+            /* 画質を変えると合成の構成そのものが変わるので、作り直す */
+            key={quality.tier}
+            ref={viewRef}
+            scene={scene}
+            camera={camera}
+            light={light}
+            quality={quality}
+            use={desiredUse}
+          />
         ) : (
-          <SceneView ref={viewRef} scene={scene} camera={camera} />
+          <div className="persp-idle">3D</div>
         )}
-        <span className="persp-tag">{result ? 'AI生成のイメージ' : '3Dモデル（実寸）'}</span>
+        <span className="persp-tag">{result ? 'AI生成のイメージ' : '3D（実寸）'}</span>
+        {!result && live && <span className="persp-hint">横になぞると見回せます</span>}
       </div>
 
-      <div className="persp-controls">
-        <select
-          value={camIndex}
-          onChange={(e) => {
-            setCamIndex(Number(e.target.value));
-            setResult(null);
-          }}
-          className="hb-field"
-          aria-label="視点"
-        >
-          {scene.cameras.map((c, i) => (
-            <option key={c.id} value={i}>{c.label}</option>
-          ))}
-        </select>
-        <select
-          value={light.id}
-          onChange={(e) => setLight(LIGHTS.find((l) => l.id === e.target.value) ?? LIGHTS[1])}
-          className="hb-field"
-          aria-label="光"
-        >
-          {LIGHTS.map((l) => (
-            <option key={l.id} value={l.id}>{l.label}</option>
-          ))}
-        </select>
+      <div className="chiprow" role="group" aria-label="視点">
+        {scene.cameras.map((c, i) => (
+          <button
+            key={c.id}
+            className={'chip' + (i === camIndex ? ' on' : '')}
+            onClick={() => {
+              setCamIndex(i);
+              setResult(null);
+            }}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="chiprow" role="group" aria-label="光">
+        {LIGHTS.map((l) => (
+          <button
+            key={l.id}
+            className={'chip' + (l.id === light ? ' on' : '')}
+            onClick={() => setLight(l.id)}
+          >
+            {l.label}
+          </button>
+        ))}
+        <span className="chipgap" />
+        {TIERS.map((t) => (
+          <button
+            key={t.id}
+            className={'chip chip-q' + (t.id === pick ? ' on' : '')}
+            onClick={() => setPick(t.id)}
+            title="描き込みの細かさ"
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="persp-actions">
         <button onClick={() => void makePerspective()} disabled={busy} className="hb-btn hb-cta">
-          {busy ? '描いています…' : result ? '描き直す' : 'パースをつくる'}
+          {busy ? '描いています…' : result ? '描き直す' : '写真のようにする'}
         </button>
         {result && (
-          <button onClick={() => setResult(null)} className="hb-btn hb-outline">3Dに戻す</button>
+          <>
+            <button onClick={() => setResult(null)} className="hb-btn hb-outline">3Dに戻す</button>
+            <a href={result.dataUrl} download={`${planName}-パース.png`} className="hb-btn hb-outline">保存</a>
+          </>
         )}
       </div>
 
@@ -173,8 +237,8 @@ export default function PlanPerspective({
       {error && <p className="hb-warn" style={{ marginTop: 10, fontSize: 12.5 }}>{error}</p>}
 
       <p className="persp-note">
-        3Dは実測・作図した寸法そのものです。パースはその形を保ったまま、材質と光だけを写実化したイメージで、
-        施工後の仕上がりを約束するものではありません。
+        3Dは実測・作図した寸法そのものです。家具は広さの見当をつけるための添景で、寸法の指定ではありません。
+        写真化したものは仕上がりのイメージで、施工後を約束するものではありません。
       </p>
     </div>
   );

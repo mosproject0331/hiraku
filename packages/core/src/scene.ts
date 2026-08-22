@@ -182,9 +182,48 @@ export function buildRenovationScene(model: SpaceModel, ops: RenovationOp[]): Re
   };
 }
 
+/* ────────── 視点さがし ──────────
+ * 「どこに立てば、その部屋がいちばんよく見えるか」を実際に数えて決める。
+ * 部屋の中に格子状の点をまいて、立ち位置ごとに“見える点の数”を測り、
+ * いちばん多く見える向きを採る。L字の部屋でも壁の陰は見えない点として落ちる。
+ */
+
+/** 部屋の中に等間隔の点をまく */
+function interiorSamples(pts: XY[], stepMm: number, cap: number): XY[] {
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  const x0 = Math.min(...xs);
+  const x1 = Math.max(...xs);
+  const y0 = Math.min(...ys);
+  const y1 = Math.max(...ys);
+  let step = stepMm;
+  for (let guard = 0; guard < 6; guard++) {
+    const out: XY[] = [];
+    for (let x = x0 + step / 2; x < x1; x += step) {
+      for (let y = y0 + step / 2; y < y1; y += step) {
+        const p = { x, y };
+        if (pointInPolygon(p, pts)) out.push(p);
+      }
+    }
+    if (out.length <= cap || step > 4000) return out;
+    step *= 1.45;
+  }
+  return [];
+}
+
+/** 2点を結ぶ線が部屋の中に収まっているか（壁の陰を落とすための粗い判定） */
+function seesEachOther(a: XY, b: XY, pts: XY[]): boolean {
+  for (const t of [0.2, 0.4, 0.6, 0.8]) {
+    if (!pointInPolygon({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, pts)) return false;
+  }
+  return true;
+}
+
 /**
  * 室内の見せ場からのカメラを提案する。
- * いちばん広い部屋の隅に立ち、部屋の奥（できれば窓のある方）を見る構図。
+ *
+ * 目線は水平のまま（垂直線が倒れない）。画角は見る先までの距離に合わせる。
+ * 窓が画面に入る向きを優先し、光の見える構図にする。
  */
 export function interiorCameras(model: SpaceModel, max = 3): CameraSpec[] {
   const level = model.levels[0];
@@ -192,101 +231,114 @@ export function interiorCameras(model: SpaceModel, max = 3): CameraSpec[] {
   const rooms = detectRooms(level);
   const faces = detectFaces(level);
   const nodeById = new Map(level.nodes.map((n) => [n.id, n] as const));
-  const eye = 1.5; // 立った目線の高さ(m)
+  const EYE = 1.45;
+  const MIN_CLEARANCE = 520;
+  const HALF_FOV = Math.cos((33 * Math.PI) / 180); // 探索に使う水平画角の半分
   const out: CameraSpec[] = [];
 
-  /** 壁の上にある開口の中心（図面座標mm）と種別 */
-  const openingCenter = (wallId: string): { p: XY; kind: string; width: number } | null => {
-    const w = level.walls.find((x) => x.id === wallId);
-    if (!w) return null;
-    const a = nodeById.get(w.a);
-    const b = nodeById.get(w.b);
-    if (!a || !b) return null;
-    const len = dist(a, b);
-    if (len < 1) return null;
-    const ops = level.openings.filter((o) => o.wallId === wallId);
-    if (!ops.length) return null;
-    // いちばん広い開口を代表にする（窓を優先）
-    const best = ops.sort(
-      (p, q) => (q.kind === 'window' ? 1e6 : 0) + q.width - ((p.kind === 'window' ? 1e6 : 0) + p.width),
-    )[0]!;
-    const t0 = (best.offset + best.width / 2) / len;
-    return {
-      p: { x: a.x + (b.x - a.x) * t0, y: a.y + (b.y - a.y) * t0 },
-      kind: best.kind,
-      width: best.width,
-    };
+  const bestOpening = (wallLoop: string[]): { p: XY; kind: string; width: number } | null => {
+    let best: { p: XY; kind: string; width: number; score: number } | null = null;
+    for (const wallId of wallLoop) {
+      const w = level.walls.find((x) => x.id === wallId);
+      if (!w) continue;
+      const a = nodeById.get(w.a);
+      const b = nodeById.get(w.b);
+      if (!a || !b) continue;
+      const len = dist(a, b);
+      if (len < 1) continue;
+      for (const o of level.openings.filter((x) => x.wallId === wallId)) {
+        const score = (o.kind === 'window' ? 1e6 : o.kind === 'entrance' ? 5e5 : 0) + o.width;
+        if (best && score <= best.score) continue;
+        const t = (o.offset + o.width / 2) / len;
+        best = {
+          p: { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t },
+          kind: o.kind,
+          width: o.width,
+          score,
+        };
+      }
+    }
+    return best;
   };
 
-  rooms.slice(0, max).forEach((r, i) => {
-    const f = faces[i];
-    if (!f) return;
-    const pts: XY[] = f.nodeIds.map((id) => nodeById.get(id)!).filter(Boolean);
-    if (pts.length < 3) return;
-    // L字の部屋では重心が外に出るので、壁からいちばん離れた内部点を基準にする
-    const c = poleOfInaccessibility(pts);
+  const ordered = rooms
+    .map((r, i) => ({ r, f: faces[i] }))
+    .filter((x) => x.f)
+    .sort((a, b) => b.r.areaM2 - a.r.areaM2);
 
-    // この部屋の壁にある開口のうち、いちばん見せ場になるもの
-    const lit = r.wallLoop
-      .map((wid) => openingCenter(wid))
-      .filter((x): x is { p: XY; kind: string; width: number } => x !== null)
-      .sort((p, q) => (q.kind === 'window' ? 1e6 : 0) + q.width - ((p.kind === 'window' ? 1e6 : 0) + p.width))[0];
+  for (const { r, f } of ordered) {
+    if (out.length >= max) break;
+    const pts: XY[] = f!.nodeIds.map((id) => nodeById.get(id)!).filter(Boolean);
+    if (pts.length < 3 || r.areaM2 < 3) continue;
 
-    const MIN_CLEARANCE = 500; // 壁からこれだけ離れて立つ(mm)
-    const insideEnough = (p: XY) => pointInPolygon(p, pts) && distToEdges(p, pts) >= MIN_CLEARANCE;
+    const samples = interiorSamples(pts, Math.max(380, Math.sqrt(r.areaM2) * 190), 320);
+    if (samples.length < 6) continue;
 
-    let look: XY;
-    let stand: XY;
-    if (lit) {
-      // 開口を正面に見て、そこから最も後ろに下がれる位置に立つ（光が入る構図）
-      look = lit.p;
-      const dx = c.x - lit.p.x;
-      const dy = c.y - lit.p.y;
-      const d = Math.hypot(dx, dy) || 1;
-      const ux = dx / d;
-      const uy = dy / d;
-      // 開口から離れる方向に少しずつ下がり、部屋の中に居られる最遠点を採る
-      stand = c;
-      for (let back = d * 0.6; back <= d * 2.2; back += 150) {
-        const cand = { x: lit.p.x + ux * back, y: lit.p.y + uy * back };
-        if (insideEnough(cand)) stand = cand;
-      }
-      if (!insideEnough(stand)) stand = c;
-    } else {
-      // 開口が無ければ、いちばん長い対角を使う
-      let a = pts[0]!;
-      let b = pts[1] ?? pts[0]!;
-      let best = -1;
-      for (const p of pts) {
-        for (const q of pts) {
-          const d = dist(p, q);
-          if (d > best) {
-            best = d;
-            a = p;
-            b = q;
-          }
+    // 立てる場所（壁から離れている点）を間引いて候補にする
+    const standable = samples.filter((p) => distToEdges(p, pts) >= MIN_CLEARANCE);
+    const pool = standable.length ? standable : [poleOfInaccessibility(pts)];
+    const stride = Math.max(1, Math.ceil(pool.length / 40));
+    const stands = pool.filter((_, i) => i % stride === 0);
+
+    const win = bestOpening(r.wallLoop);
+    const DIRS = 24;
+
+    let best: { stand: XY; look: XY; seen: number; far: number } | null = null;
+    for (const stand of stands) {
+      const vis = samples.filter((s) => s !== stand && seesEachOther(stand, s, pts));
+      if (!vis.length) continue;
+      const winVisible = win ? seesEachOther(stand, win.p, pts) : false;
+      for (let d = 0; d < DIRS; d++) {
+        const ang = (d / DIRS) * Math.PI * 2;
+        const ux = Math.cos(ang);
+        const uy = Math.sin(ang);
+        let seen = 0;
+        let sx = 0;
+        let sy = 0;
+        let far = 0;
+        for (const s of vis) {
+          const vx = s.x - stand.x;
+          const vy = s.y - stand.y;
+          const len = Math.hypot(vx, vy);
+          if (len < 1) continue;
+          if ((vx * ux + vy * uy) / len < HALF_FOV) continue;
+          seen++;
+          sx += s.x;
+          sy += s.y;
+          if (len > far) far = len;
+        }
+        if (seen < 3) continue;
+        let score = seen;
+        if (winVisible && win) {
+          const wx = win.p.x - stand.x;
+          const wy = win.p.y - stand.y;
+          const wl = Math.hypot(wx, wy) || 1;
+          const cos = (wx * ux + wy * uy) / wl;
+          // 窓が画面に入るほど良い。真横・後ろは減点しない程度に留める
+          if (cos >= HALF_FOV) score += samples.length * 0.42;
+          else if (cos > 0.2) score += samples.length * 0.12;
+        }
+        // 立ち位置が壁に近いほど、部屋が前に広がる
+        score += (1 - Math.min(1, distToEdges(stand, pts) / 2600)) * samples.length * 0.16;
+        if (!best || score > best.seen) {
+          best = { stand, look: { x: sx / seen, y: sy / seen }, seen: score, far };
         }
       }
-      const ux = (c.x - a.x) / (dist(a, c) || 1);
-      const uy = (c.y - a.y) / (dist(a, c) || 1);
-      stand = c;
-      for (let inset = 300; inset <= Math.min(2200, best * 0.5); inset += 150) {
-        const cand = { x: a.x + ux * inset, y: a.y + uy * inset };
-        if (insideEnough(cand)) {
-          stand = cand;
-          break;
-        }
-      }
-      look = b;
     }
+
+    const stand = best?.stand ?? poleOfInaccessibility(pts);
+    const look = best?.look ?? (win ? win.p : pts[0]!);
+    // 画角は「いちばん奥まで入るか」で決める。近くの重心だけだと広角になりすぎる
+    const depth = Math.max(1.2, ((best?.far ?? dist(stand, look)) * 0.7 + dist(stand, look) * 0.3) / 1000);
+    const fovDeg = Math.max(42, Math.min(64, 78 - depth * 6.2));
 
     out.push({
       id: 'cam-' + r.id,
       label: `${r.name}から`,
-      position: [stand.x / 1000, eye, stand.y / 1000],
-      target: [look.x / 1000, 1.2, look.y / 1000],
-      fovDeg: 65,
+      position: [stand.x / 1000, EYE, stand.y / 1000],
+      target: [look.x / 1000, EYE, look.y / 1000],
+      fovDeg,
     });
-  });
+  }
   return out;
 }

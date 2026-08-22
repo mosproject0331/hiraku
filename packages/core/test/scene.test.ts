@@ -70,10 +70,13 @@ describe('室内カメラ', () => {
     const cams = interiorCameras(load());
     expect(cams.length).toBeGreaterThanOrEqual(1);
     for (const c of cams) {
-      expect(c.position[1]).toBeCloseTo(1.5, 2);
+      expect(c.position[1]).toBeCloseTo(1.45, 2);
       expect(c.fovDeg).toBeGreaterThan(40);
-      // 対象は自分より低い位置（床が見える構図）
-      expect(c.target[1]).toBeLessThan(c.position[1]);
+      expect(c.fovDeg).toBeLessThanOrEqual(66);
+      // 視線は水平。建築写真として垂直線を倒さないため
+      expect(c.target[1]).toBeCloseTo(c.position[1], 5);
+      // 見る先は自分から離れている
+      expect(Math.hypot(c.target[0] - c.position[0], c.target[2] - c.position[2])).toBeGreaterThan(1);
     }
   });
 

@@ -10,19 +10,22 @@
     "build:static": "node scripts-build-static.mjs"
   },
   "dependencies": {
+    "@hiraku/core": "workspace:*",
+    "@hiraku/estimate": "workspace:*",
+    "@hiraku/knowledge": "workspace:*",
+    "@hiraku/llm": "workspace:*",
+    "@hiraku/regionpack": "workspace:*",
+    "@hiraku/report": "workspace:*",
+    "@hiraku/rules": "workspace:*",
+    "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
+    "@react-three/postprocessing": "^3.0.5",
     "next": "16.3.2",
+    "postprocessing": "^6.39.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "three": "^0.185.1",
-    "zustand": "^5.0.15",
-    "@hiraku/core": "workspace:*",
-    "@hiraku/rules": "workspace:*",
-    "@hiraku/report": "workspace:*",
-    "@hiraku/estimate": "workspace:*",
-    "@hiraku/llm": "workspace:*",
-    "@hiraku/regionpack": "workspace:*",
-    "@hiraku/knowledge": "workspace:*"
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

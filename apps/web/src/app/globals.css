@@ -306,7 +306,40 @@ body{
   background:rgba(30,30,36,.78);color:#fff;
   padding:3px 9px;border-radius:var(--r-pill);
 }
-.persp-controls{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
-.persp-controls .hb-field{padding:7px 10px;font-size:12.5px}
-.persp-controls .hb-btn{font-size:12.5px;padding:8px 14px}
+.persp-view canvas{touch-action:pan-y;display:block}
+.persp-idle{
+  width:100%;height:100%;display:grid;place-items:center;
+  color:var(--fg-3);font-size:11px;letter-spacing:.16em;
+}
+.persp-hint{
+  position:absolute;right:8px;bottom:8px;font-size:10px;color:#fff;
+  background:rgba(30,30,36,.55);padding:3px 8px;border-radius:var(--r-pill);
+  pointer-events:none;
+}
+.persp-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.persp-actions .hb-btn{font-size:12.5px;padding:10px 16px;min-height:40px;display:inline-flex;align-items:center}
 .persp-note{margin-top:9px;font-size:11px;line-height:1.75;color:var(--fg-3)}
+
+/* ── 横スクロールの選択チップ（親指で選べる幅にする） ── */
+.chiprow{
+  display:flex;gap:6px;align-items:center;margin-top:9px;
+  overflow-x:auto;padding-bottom:2px;
+  scrollbar-width:none;-ms-overflow-style:none;
+  scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;
+}
+.chiprow::-webkit-scrollbar{display:none}
+.chip{
+  flex:0 0 auto;scroll-snap-align:start;
+  min-height:36px;padding:7px 14px;border-radius:var(--r-pill);
+  border:1px solid var(--border-soft);background:var(--surface);
+  color:var(--fg-2);font-size:12.5px;line-height:1.2;font-weight:500;
+  cursor:pointer;transition:background .12s,color .12s,border-color .12s;
+  white-space:nowrap;
+}
+.chip:hover{border-color:var(--border)}
+.chip.on{background:var(--fg-1);color:var(--surface);border-color:var(--fg-1)}
+.chip-q{font-size:11.5px;padding:6px 11px;min-height:32px;opacity:.82}
+.chipgap{flex:0 0 auto;width:1px;height:22px;background:var(--border-soft);margin:0 4px}
+@media (min-width:720px){
+  .persp-view{aspect-ratio:16/10}
+}
