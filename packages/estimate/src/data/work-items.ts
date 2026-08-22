@@ -128,7 +128,7 @@ export const WORK_ITEMS: WorkItem[] = [
   // 建具
   { id: 'door-replace', category: '建具', name: '室内ドア交換', unit: '箇所', materialUnitPrice: P(20000, 60000, 'equipment'), diyClass: 'diy_hard',
     steps: ['枠の歪みを確認する', '既製建具の寸法を合わせる', '丁番・ハンドルを付ける'] },
-  { id: 'window_inner', category: '建具', name: '内窓の設置', unit: '箇所', materialUnitPrice: V(50000, 110000, '内窓の工事込み実勢。腰高窓カタログ100,800円／掃出し窓205,700円、実勢はその半分程度。掃出し窓の工事例108,900円（内窓リフォームネット・さくら住建）', '2026-08', 'installed'), diyClass: 'diy',
+  { id: 'window_inner', category: '建具', name: '内窓の設置', unit: '箇所', materialUnitPrice: V(50000, 110000, '内窓の工事込み実勢。腰高窓カタログ100,800円／掃出し窓205,700円、実勢はその半分程度。掃出し窓の工事例108,900円（内窓リフォームネット・さくら住建）', '2026-08', 'installed'), diyClass: 'pro_recommended',
     steps: ['窓枠の内寸を採寸する', 'メーカーに発注する', 'レールをビス留めして障子をはめる'],
     marketNote: '断熱効果が大きく、補助金の対象になることが多い' },
   { id: 'amido', category: '建具', name: '網戸の新調・張替え', unit: '枚', materialUnitPrice: P(2000, 8000), diyClass: 'diy',

@@ -247,3 +247,19 @@ describe('相場との突き合わせ', () => {
     }
   });
 });
+
+describe('種別と担い手の整合', () => {
+  it('施工込みの単価は、専門工事の側に置く（DIY材料費に混ぜない）', () => {
+    for (const w of WORK_ITEMS) {
+      if (w.materialUnitPrice.basis !== 'installed') continue;
+      expect(['licensed', 'pro_recommended', 'permit_related'], w.id).toContain(w.diyClass);
+    }
+  });
+
+  it('材料のみの単価は、自分で動かせる側にある', () => {
+    for (const w of WORK_ITEMS) {
+      if (w.materialUnitPrice.basis !== 'material') continue;
+      expect(['diy', 'diy_hard', 'pro_recommended'], w.id).toContain(w.diyClass);
+    }
+  });
+});
