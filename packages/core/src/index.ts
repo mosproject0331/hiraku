@@ -13,7 +13,7 @@ export type { OpIssue } from './ops';
 export { solveConstraints, suggestNextMeasurements } from './measure';
 export type { MeasureSuggestion } from './measure';
 export { initialBackdrop, calibrateBackdrop, backdropSizeMm } from './backdrop';
-export { buildRenovationScene, interiorCameras, FINISHES } from './scene';
+export { buildRenovationScene, interiorCameras, exteriorCamera, FINISHES } from './scene';
 export type { RenovationScene, RoomScene, CameraSpec, Finish, WaterUnit } from './scene';
 export {
   extendWall,

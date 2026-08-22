@@ -166,20 +166,58 @@ function SunTarget({ at }: { at: [number, number, number] }) {
 
 /* ---------------- 躯体 ---------------- */
 
-function Shell({ building, transmission }: { building: Building; transmission: boolean }) {
+function Shell({
+  building, transmission, exterior = false,
+}: {
+  building: Building; transmission: boolean; exterior?: boolean;
+}) {
   const invalidate = useThree((s) => s.invalidate);
-  const shell = useMemo(() => buildShell(building, { transmission }), [building, transmission]);
+
+  /**
+   * 組み立ては副作用を持たない。
+   * 開発時は描画が二度走り、片方は捨てられる。そこで片づけをすると、
+   * 生きているほうの中身まで消えてしまう（外観が真っ白になっていた原因）。
+   * 片づけは、実際に画面へ出たものだけを見て行う。
+   */
+  const shell = useMemo(
+    () => buildShell(building, { transmission, exterior }),
+    [building, transmission, exterior],
+  );
+
+  const live = useRef<ReturnType<typeof buildShell> | null>(null);
+  const mounted = useRef(0);
+
   useEffect(() => {
+    const old = live.current;
+    live.current = shell;
+    if (old && old !== shell) old.dispose();
     invalidate();
-    return () => shell.dispose();
   }, [shell, invalidate]);
-  return <primitive object={shell.group} />;
+
+  useEffect(() => {
+    mounted.current += 1;
+    return () => {
+      mounted.current -= 1;
+      // 二度がけの付け外しでは、すぐ戻ってくる。次の間合いで数えてから片づける
+      setTimeout(() => {
+        if (mounted.current === 0) {
+          live.current?.dispose();
+          live.current = null;
+        }
+      }, 0);
+    };
+  }, []);
+  // dispose={null} が要る。R3F に任せると、仕上げごとに使い回している
+  // マテリアルまで破棄され、次に組み直したときに何も描かれなくなる
+  return <primitive object={shell.group} position={[0, building.baseY, 0]} dispose={null} />;
 }
 
 /* ---------------- カメラ ---------------- */
 
 /** 天地を起こしたまま見回す。垂直線が倒れないのが建築の写真の基本 */
-function CameraRig({ cam, shift = 0.06 }: { cam: CameraSpec; shift?: number }) {
+function CameraRig({ cam, shift }: { cam: CameraSpec; shift?: number }) {
+  // 外観は建物の上まで入れたいので、レンズを大きく上へずらす（あおらずに）
+  const lensShift = shift ?? (cam.id === 'cam-exterior' ? 0.55 : 0.06);
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const gl = useThree((s) => s.gl);
   const size = useThree((s) => s.size);
@@ -196,7 +234,7 @@ function CameraRig({ cam, shift = 0.06 }: { cam: CameraSpec; shift?: number }) {
     camera.fov = (Math.atan((1 + K) * Math.tan((fov.current * Math.PI) / 360)) * 360) / Math.PI;
     camera.setViewOffset(
       size.width * (1 + K), size.height * (1 + K),
-      (size.width * K) / 2, (size.height * K * (1 - shift)) / 2,
+      (size.width * K) / 2, (size.height * K * (1 - lensShift)) / 2,
       size.width, size.height,
     );
     camera.updateProjectionMatrix();
@@ -376,6 +414,7 @@ function DevHandle({
       scene: state.scene,
       gl: state.gl,
       building,
+      stack: (window as unknown as { __hirakuStack?: unknown }).__hirakuStack,
       props: items,
       cams,
       capture: () => capture.current?.capture() ?? Promise.resolve(null),
@@ -397,10 +436,12 @@ export interface SceneViewProps {
   site?: Site | null;
   /** 見たい日（季節）。既定は今日 */
   when?: Date;
+  /** どの階を見ているか */
+  levelIndex?: number;
 }
 
 const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView(
-  { scene, camera, light = 'noon', quality, use, site, when },
+  { scene, camera, light = 'noon', quality, use, site, when, levelIndex = 0 },
   ref,
 ) {
   const handle = useRef<SceneViewHandle | null>(null);
@@ -409,11 +450,39 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
 
   // 素材の細かさは端末に合わせる。作り直しが要るので、組み立ての前に決める
   setFinishTextureSize(quality.texSize);
+  const outside = camera.id === 'cam-exterior';
   const building = useMemo(
     () =>
-      buildBuilding(scene, light, { position: camera.position, target: camera.target }, site, when),
-    [scene, light, camera, site, when],
+      buildBuilding(
+        scene, light, { position: camera.position, target: camera.target }, site, when, levelIndex,
+      ),
+    [scene, light, camera, site, when, levelIndex],
   );
+  /** 外から見るときは、階を積んで建物ぜんぶを出す */
+  const stack = useMemo(() => {
+    if (!outside) return [];
+    // 何が組めたかを、開発時だけ外から見えるようにする
+
+    return scene.model.levels
+      .map((_, i) =>
+        buildBuilding(
+          scene, light, { position: camera.position, target: camera.target }, site, when, i,
+        ),
+      )
+      .filter((b): b is Building => b !== null);
+  }, [outside, scene, light, camera, site, when]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      (window as unknown as { __hirakuStack?: unknown }).__hirakuStack = stack.map((b) => ({
+        walls: b.walls.length,
+        rooms: b.rooms.length,
+        baseY: b.baseY,
+        isTop: b.isTop,
+        roof: !!b.roof,
+      }));
+    }
+  }, [stack]);
   // カメラの前 1.4m には家具を置かない（レンズに被って構図が壊れるため）
   const avoid = useMemo(
     () => scene.cameras.map((c) => ({ x: c.position[0], z: c.position[2], r: 1.4 })),
@@ -484,8 +553,16 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
       />
       <WindowLights windows={building.windows} light={light} gain={sky.rect} />
 
-      <Shell building={building} transmission={quality.transmission} />
-      {quality.entourage && <Entourage props={props} height={building.height} lightsOn={night || light === 'evening'} />}
+      {outside ? (
+        stack.map((b, i) => (
+          <Shell key={i} building={b} transmission={quality.transmission} exterior />
+        ))
+      ) : (
+        <Shell building={building} transmission={quality.transmission} />
+      )}
+      {!outside && quality.entourage && (
+        <Entourage props={props} height={building.height} lightsOn={night || light === 'evening'} />
+      )}
       <Vegetation plants={plants} />
 
       <EffectComposer

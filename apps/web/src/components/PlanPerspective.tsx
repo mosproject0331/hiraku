@@ -160,6 +160,7 @@ export default function PlanPerspective({
             use={desiredUse}
             site={site}
             when={when}
+            levelIndex={li}
           />
         ) : (
           <div className="persp-idle">3D</div>

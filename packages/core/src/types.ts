@@ -75,9 +75,52 @@ export interface Level {
   backdrop?: Backdrop;
 }
 
+/**
+ * 屋根。
+ *
+ * 古民家の姿は屋根で決まる。外から見た印象も、中の天井の高さも、
+ * どこに光が落ちるかも、屋根の形と勾配で変わる。
+ * 図面から自動では決まらないので、見て決めてもらう。
+ */
+export interface Roof {
+  /** 形 */
+  shape: 'gable' | 'hip' | 'shed' | 'flat';
+  /** 勾配（寸）。4なら4寸＝4/10 */
+  pitchSun: number;
+  /** 軒の出(mm) */
+  eaveMm: number;
+  /** 棟の向き。'x' なら棟が図面の左右方向 */
+  ridge: 'x' | 'y';
+  /** 屋根材 */
+  material: 'kawara' | 'metal' | 'shingle';
+  /** 小屋裏を見せる（化粧屋根裏・勾配天井） */
+  exposeCeiling: boolean;
+}
+
+export const ROOF_SHAPE_LABEL: Record<Roof['shape'], string> = {
+  gable: '切妻',
+  hip: '寄棟',
+  shed: '片流れ',
+  flat: '陸屋根',
+};
+
+export const ROOF_MATERIAL_LABEL: Record<Roof['material'], string> = {
+  kawara: '瓦',
+  metal: 'ガルバリウム',
+  shingle: 'スレート',
+};
+
+export function defaultRoof(): Roof {
+  return { shape: 'gable', pitchSun: 4, eaveMm: 600, ridge: 'x', material: 'kawara', exposeCeiling: false };
+}
+
 export interface SpaceModel {
   id: string;
   levels: Level[];
+  /** 屋根。無ければ描かない */
+  roof?: Roof;
+  /** 外壁の仕上げ。外から見るときに使う */
+  exteriorWall?: 'siding_wood' | 'mortar_out' | 'shikkui_out' | 'yakisugi';
   moduleMm: number; // 既定910
   scaleFactor: number;
   version: number;

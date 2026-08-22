@@ -24,6 +24,13 @@ export const FINISHES: Record<string, Finish> = {
   paint:         { id: 'paint',         label: '塗装',          color: '#e8e4dc', roughness: 0.9,  phrase: 'matte painted wall' },
   ceiling_paint: { id: 'ceiling_paint', label: '天井塗装',      color: '#f2efe9', roughness: 0.95, phrase: 'matte painted ceiling' },
   ceiling_board: { id: 'ceiling_board', label: '天井板',        color: '#a98e6b', roughness: 0.7,  phrase: 'exposed timber ceiling boards' },
+  siding_wood:   { id: 'siding_wood',   label: '下見板',        color: '#6f5a44', roughness: 0.82, phrase: 'weathered horizontal timber siding (shitami-ita)' },
+  mortar_out:    { id: 'mortar_out',    label: 'モルタル',      color: '#b9b3a8', roughness: 0.92, phrase: 'grey mortar render, lightly stained' },
+  shikkui_out:   { id: 'shikkui_out',   label: '外壁漆喰',      color: '#e6e1d5', roughness: 0.95, phrase: 'white shikkui plaster exterior wall' },
+  yakisugi:      { id: 'yakisugi',      label: '焼杉',          color: '#2e2a26', roughness: 0.86, phrase: 'charred cedar boards (yakisugi), matte black' },
+  roof_kawara:   { id: 'roof_kawara',   label: '瓦',            color: '#3f4550', roughness: 0.72, phrase: 'aged Japanese clay roof tiles (kawara)' },
+  roof_metal:    { id: 'roof_metal',    label: 'ガルバリウム',   color: '#5a5f63', roughness: 0.42, phrase: 'standing-seam galvalume steel roofing' },
+  roof_shingle:  { id: 'roof_shingle',  label: 'スレート',      color: '#4c4a48', roughness: 0.8,  phrase: 'weathered slate roof shingles' },
   /** 手つかずの既存部分 */
   as_is_floor:   { id: 'as_is_floor',   label: '既存の床',      color: '#9c8a72', roughness: 0.85, phrase: 'aged timber floor' },
 };
@@ -181,7 +188,11 @@ export function buildRenovationScene(
   return {
     model: next,
     rooms: [...byRoom.values()],
-    cameras: interiorCameras(next, 3, levelIndex),
+    cameras: [
+      ...interiorCameras(next, 3, levelIndex),
+      // 屋根があるときだけ、外からの視点を足す（屋根が無いと箱にしか見えない）
+      ...(next.roof ? [exteriorCamera(next)].filter((c): c is CameraSpec => c !== null) : []),
+    ],
     changes,
   };
 }
@@ -362,4 +373,83 @@ export function interiorCameras(model: SpaceModel, max = 3, levelIndex = 0): Cam
     });
   }
   return out;
+}
+
+/**
+ * 外から建物を見る視点。
+ *
+ * 玄関のある面の外に立つ。人が最初にその家を見る位置だから。
+ * 屋根の形と軒の深さは、ここからでないと伝わらない。
+ */
+export function exteriorCamera(model: SpaceModel): CameraSpec | null {
+  const nodes = model.levels.flatMap((lv) => lv.nodes);
+  if (nodes.length < 3) return null;
+  const xs = nodes.map((n) => n.x / 1000);
+  const ys = nodes.map((n) => n.y / 1000);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minZ = Math.min(...ys);
+  const maxZ = Math.max(...ys);
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
+  const w = maxX - minX;
+  const d = maxZ - minZ;
+  const diag = Math.hypot(w, d);
+
+  // 玄関のある壁を探し、その外側に立つ
+  let dir = { x: 0, y: 1 };
+  outer: for (const lv of model.levels) {
+    const byId = new Map(lv.nodes.map((n) => [n.id, n] as const));
+    for (const o of lv.openings) {
+      if (o.kind !== 'entrance') continue;
+      const wl = lv.walls.find((x) => x.id === o.wallId);
+      const a = wl && byId.get(wl.a);
+      const b = wl && byId.get(wl.b);
+      if (!a || !b) continue;
+      const ang = Math.atan2(b.y - a.y, b.x - a.x);
+      const nx = -Math.sin(ang);
+      const ny = Math.cos(ang);
+      // 建物の中心から離れる向きを外とする
+      const mx = (a.x + b.x) / 2000 - cx;
+      const mz = (a.y + b.y) / 2000 - cz;
+      const sign = nx * mx + ny * mz >= 0 ? 1 : -1;
+      dir = { x: nx * sign, y: ny * sign };
+      break outer;
+    }
+  }
+
+  // 建物の高さ。階を積み、屋根の棟まで見込む
+  const wallTop = model.levels.reduce((y, lv) => y + (lv.heightMm ?? 2400) / 1000 + 0.32, 0) - 0.32;
+  const r = model.roof;
+  const rise = r
+    ? r.shape === 'flat'
+      ? 0.45
+      : (Math.min(w, d) / 2 + (r.eaveMm ?? 600) / 1000) * (Math.max(0, r.pitchSun) / 10) + 0.3
+    : 0.4;
+  const topY = wallTop + rise;
+
+  const EYE = 1.55;
+  const fovDeg = Math.max(32, Math.min(50, 58 - diag * 0.9));
+  const tanHalf = Math.tan((fovDeg * Math.PI) / 360);
+
+  // あおらずに（垂直線を倒さずに）棟まで入れるため、レンズを上へずらす。
+  // 画面側の CameraRig と同じ値を使う。ずらすと上に見える範囲が (1 + K*s) 倍になる
+  const LENS_K = 0.32;
+  const LENS_SHIFT = 0.55;
+  const upFactor = 1 + LENS_K * LENS_SHIFT;
+
+  const needForHeight = (topY - EYE) / Math.max(0.15, tanHalf * upFactor);
+  // 横は 4:3 を見込む
+  const needForWidth = diag / 2 / Math.max(0.15, tanHalf * 1.33);
+  // 建物の手前の面までの距離が要るので、外接円の半径を足す
+  const away = Math.max(8, diag / 2 + Math.max(needForHeight, needForWidth) * 1.12);
+
+  return {
+    id: 'cam-exterior',
+    label: '外から',
+    position: [cx + dir.x * away, EYE, cz + dir.y * away],
+    // 目線は水平。垂直線が倒れない（あおらない）
+    target: [cx, EYE, cz],
+    fovDeg,
+  };
 }

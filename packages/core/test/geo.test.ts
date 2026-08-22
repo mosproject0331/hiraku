@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   bearingToPlanHeading, lonLatToPixel, metersPerPixel, northHeadingInPlan,
-  pixelToLonLat, planToLonLat, solarNoon, solarPosition, sunTimes, type Site,
+  exteriorCamera, pixelToLonLat, planToLonLat, solarNoon, solarPosition, sunTimes,
+  type Site, type SpaceModel,
 } from '../src/index';
 
 const TOKYO = { lat: 35.6895, lon: 139.6917 };
@@ -117,5 +118,61 @@ describe('日の出と日の入り', () => {
     const t = sunTimes(new Date('2026-09-23T03:00:00Z'), TOKYO.lat, TOKYO.lon);
     expect(t.sunrise!.getTime()).toBeLessThan(t.noon.getTime());
     expect(t.sunset!.getTime()).toBeGreaterThan(t.noon.getTime());
+  });
+});
+
+describe('外からの視点', () => {
+  it('屋根の棟まで画面に入る距離をとる', () => {
+    const m: SpaceModel = {
+      id: 't',
+      levels: [
+        { id: 'L1', name: '1階', heightMm: 2400, nodes: [
+          { id: 'n1', x: 0, y: 0, confidence: 'measured' },
+          { id: 'n2', x: 8000, y: 0, confidence: 'measured' },
+          { id: 'n3', x: 8000, y: 6000, confidence: 'measured' },
+          { id: 'n4', x: 0, y: 6000, confidence: 'measured' },
+        ], walls: [
+          { id: 'w1', a: 'n1', b: 'n2', thickness: 120, confidence: 'measured', structural: 'unknown' },
+          { id: 'w2', a: 'n2', b: 'n3', thickness: 120, confidence: 'measured', structural: 'unknown' },
+          { id: 'w3', a: 'n3', b: 'n4', thickness: 120, confidence: 'measured', structural: 'unknown' },
+          { id: 'w4', a: 'n4', b: 'n1', thickness: 120, confidence: 'measured', structural: 'unknown' },
+        ], openings: [], rooms: [] },
+      ],
+      roof: { shape: 'gable', pitchSun: 4, eaveMm: 600, ridge: 'x', material: 'kawara', exposeCeiling: false },
+      moduleMm: 910, scaleFactor: 1, version: 1,
+    };
+    const cam = exteriorCamera(m)!;
+    expect(cam).toBeTruthy();
+    // 目線は水平（垂直線が倒れない）
+    expect(cam.target[1]).toBeCloseTo(cam.position[1], 6);
+    // 建物の外に立っている
+    const away = Math.hypot(cam.position[0] - 4, cam.position[2] - 3);
+    expect(away).toBeGreaterThan(5);
+
+    // 棟の高さが、ずらしたレンズの画角に入るか
+    const topY = 2.4 + ((6 / 2 + 0.6) * 0.4) + 0.3 + 0.12;
+    const tanHalf = Math.tan((cam.fovDeg * Math.PI) / 360);
+    const dNear = away - 3; // いちばん手前の面まで
+    const visibleTop = cam.position[1] + dNear * tanHalf * (1 + 0.32 * 0.55);
+    expect(visibleTop).toBeGreaterThan(topY);
+  });
+
+  it('階が増えると、その分だけ下がる', () => {
+    const one: SpaceModel = {
+      id: 't', moduleMm: 910, scaleFactor: 1, version: 1,
+      levels: [{ id: 'L1', name: '1階', heightMm: 2400, nodes: [
+        { id: 'n1', x: 0, y: 0, confidence: 'measured' },
+        { id: 'n2', x: 6000, y: 0, confidence: 'measured' },
+        { id: 'n3', x: 6000, y: 5000, confidence: 'measured' },
+      ], walls: [
+        { id: 'w1', a: 'n1', b: 'n2', thickness: 120, confidence: 'measured', structural: 'unknown' },
+        { id: 'w2', a: 'n2', b: 'n3', thickness: 120, confidence: 'measured', structural: 'unknown' },
+      ], openings: [], rooms: [] }],
+    };
+    const two: SpaceModel = { ...one, levels: [one.levels[0]!, { ...one.levels[0]!, id: 'L2', name: '2階' }] };
+    const d1 = exteriorCamera(one)!;
+    const d2 = exteriorCamera(two)!;
+    const dist = (c: typeof d1) => Math.hypot(c.position[0] - 3, c.position[2] - 2.5);
+    expect(dist(d2)).toBeGreaterThan(dist(d1));
   });
 });

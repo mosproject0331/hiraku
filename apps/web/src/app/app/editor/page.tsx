@@ -8,8 +8,12 @@ import {
   dist,
   estimateModule,
   serialize,
+  defaultRoof,
+  ROOF_MATERIAL_LABEL,
+  ROOF_SHAPE_LABEL,
   setRoomName,
   snapToGrid,
+  type Roof,
   type Opening,
 } from '@hiraku/core';
 import sampleRaw from '@hiraku/core/fixtures/sample-minka.json';
@@ -335,6 +339,98 @@ export default function EditorPage() {
                     外す
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* 屋根 */}
+          <div className="px-3 py-2 text-sm roofpanel" style={{ borderBottom: '1px solid var(--border-soft)' }}>
+            <div className="mb-1 text-xs font-semibold hb-muted">屋根 — 外から見た姿と、天井の高さが決まります</div>
+            {!model.roof ? (
+              <>
+                <p className="hb-faint" style={{ fontSize: 12, lineHeight: 1.75, marginBottom: 8 }}>
+                  屋根を載せると、外からの見え方が出せます。形は外周の矩形に架けたものとして描きます。
+                </p>
+                <button className="hb-btn hb-cta" onClick={() => useEditor.getState().setRoof(defaultRoof())}>
+                  屋根を載せる
+                </button>
+              </>
+            ) : (
+              <div className="roof-fields">
+                <label>
+                  <span>形</span>
+                  <select
+                    value={model.roof.shape}
+                    onChange={(e) => useEditor.getState().patchRoof({ shape: e.target.value as Roof['shape'] })}
+                  >
+                    {(Object.keys(ROOF_SHAPE_LABEL) as Roof['shape'][]).map((k) => (
+                      <option key={k} value={k}>{ROOF_SHAPE_LABEL[k]}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>屋根材</span>
+                  <select
+                    value={model.roof.material}
+                    onChange={(e) => useEditor.getState().patchRoof({ material: e.target.value as Roof['material'] })}
+                  >
+                    {(Object.keys(ROOF_MATERIAL_LABEL) as Roof['material'][]).map((k) => (
+                      <option key={k} value={k}>{ROOF_MATERIAL_LABEL[k]}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>勾配 {model.roof.pitchSun}寸</span>
+                  <input
+                    type="range" min={0} max={10} step={0.5} value={model.roof.pitchSun}
+                    onChange={(e) => useEditor.getState().patchRoof({ pitchSun: Number(e.target.value) })}
+                  />
+                </label>
+                <label>
+                  <span>軒の出 {model.roof.eaveMm}mm</span>
+                  <input
+                    type="range" min={0} max={1500} step={50} value={model.roof.eaveMm}
+                    onChange={(e) => useEditor.getState().patchRoof({ eaveMm: Number(e.target.value) })}
+                  />
+                </label>
+                {(model.roof.shape === 'gable' || model.roof.shape === 'shed') && (
+                  <label>
+                    <span>棟の向き</span>
+                    <select
+                      value={model.roof.ridge}
+                      onChange={(e) => useEditor.getState().patchRoof({ ridge: e.target.value as 'x' | 'y' })}
+                    >
+                      <option value="x">左右（東西）</option>
+                      <option value="y">上下（南北）</option>
+                    </select>
+                  </label>
+                )}
+                <label>
+                  <span>外壁</span>
+                  <select
+                    value={model.exteriorWall ?? 'siding_wood'}
+                    onChange={(e) =>
+                      mutate((m) => {
+                        m.exteriorWall = e.target.value as NonNullable<typeof m.exteriorWall>;
+                      })
+                    }
+                  >
+                    <option value="siding_wood">下見板</option>
+                    <option value="yakisugi">焼杉</option>
+                    <option value="shikkui_out">漆喰</option>
+                    <option value="mortar_out">モルタル</option>
+                  </select>
+                </label>
+                <label className="roof-check">
+                  <input
+                    type="checkbox" checked={model.roof.exposeCeiling}
+                    onChange={(e) => useEditor.getState().patchRoof({ exposeCeiling: e.target.checked })}
+                  />
+                  小屋裏を見せる（化粧屋根裏・勾配天井）
+                </label>
+                <button className="hb-btn hb-outline" onClick={() => useEditor.getState().setRoof(null)}>
+                  屋根を外す
+                </button>
               </div>
             )}
           </div>

@@ -16,6 +16,7 @@ import {
   setWallLength,
   solveConstraints,
   usedIds,
+  defaultRoof,
   type Backdrop,
   type CheckEntry,
   type CheckState,
@@ -25,6 +26,7 @@ import {
   type Opening,
   type Project,
   type RenovationPlan,
+  type Roof,
   type Site,
   type SpaceModel,
 } from '@hiraku/core';
@@ -185,6 +187,9 @@ interface EditorState {
   addFloor: (copyOutline: boolean) => void;
   /** 階を外す。1階は外せない */
   removeFloor: (i: number) => void;
+  /** 屋根を決める。null で外す */
+  setRoof: (r: Roof | null) => void;
+  patchRoof: (p: Partial<Roof>) => void;
   /** ヒアリングの答えを1つ入れる */
   answerHearing: (questionId: string, raw: Answer) => void;
   /** ヒアリングをやり直す */
@@ -406,6 +411,17 @@ export const useEditor = create<EditorState>()(
     const next = addLevel(model, copyOutline ? model.levels.length - 1 : undefined);
     commit(get, set, next, { levelIndex: next.levels.length - 1, selected: null, pendingNodeId: null });
   },
+  setRoof: (roof) => {
+    get().mutate((m) => {
+      if (roof) m.roof = roof;
+      else delete m.roof;
+    });
+  },
+  patchRoof: (patch) => {
+    get().mutate((m) => {
+      m.roof = { ...(m.roof ?? defaultRoof()), ...patch };
+    });
+  },
   removeFloor: (i) => {
     const next = removeLevel(get().model, i);
     commit(get, set, next, {
@@ -569,6 +585,16 @@ export const useEditor = create<EditorState>()(
 }),
     {
       name: 'hiraku-editor',
+      // 保存の形を変えたら上げる。古いものは読み替えるか捨てる
+      version: 2,
+      migrate: (persisted: unknown, from: number) => {
+        const st = (persisted ?? {}) as Record<string, unknown>;
+        if (from < 2) {
+          // 案は導かれるものなので捨てる。ヒアリングから作り直せる
+          delete st.proposals;
+        }
+        return st as never;
+      },
       partialize: (s) => ({
         model: s.model,
         measurements: s.measurements,
@@ -587,7 +613,6 @@ export const useEditor = create<EditorState>()(
         site: s.site,
         levelIndex: s.levelIndex,
         hearing: s.hearing,
-        proposals: s.proposals,
         priceBook: s.priceBook,
       }),
     },

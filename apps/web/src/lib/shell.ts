@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { WaterUnit } from '@hiraku/core';
+import { FINISHES, type Roof, type WaterUnit } from '@hiraku/core';
 import type { Building, OpeningBuild, WallBuild } from './archviz';
 import { boxWorldUV, finishMaterial, slabGeometry } from './finish-material';
+import { buildRoof, ceilingHeightAt, type RoofBuild } from './roof';
 
 /**
  * 建物の躯体・建具・設備を、実際の three.js の形にする。
@@ -12,6 +13,8 @@ import { boxWorldUV, finishMaterial, slabGeometry } from './finish-material';
 export interface ShellOptions {
   /** ガラスの屈折を使うか（重いので端末を見て決める） */
   transmission: boolean;
+  /** 外から見るときは、外壁を外部の材で張る */
+  exterior?: boolean;
 }
 
 interface Piece {
@@ -53,6 +56,24 @@ function glassMaterial(transmission: boolean): THREE.Material {
     roughness: 0.06, metalness: 0.05, transparent: true, opacity: 0.22,
     envMapIntensity: 2.2, side: THREE.DoubleSide,
   });
+}
+
+/** 三角形の向きを裏返す（裏から見せるとき） */
+function flipWinding(g: THREE.BufferGeometry): void {
+  for (const name of ['position', 'normal', 'uv'] as const) {
+    const attr = g.attributes[name] as THREE.BufferAttribute | undefined;
+    if (!attr) continue;
+    const arr = attr.array as Float32Array;
+    const size = attr.itemSize;
+    for (let i = 0; i + 3 * size <= arr.length; i += 3 * size) {
+      for (let k = 0; k < size; k++) {
+        const a = arr[i + size + k]!;
+        arr[i + size + k] = arr[i + 2 * size + k]!;
+        arr[i + 2 * size + k] = a;
+      }
+    }
+    attr.needsUpdate = true;
+  }
 }
 
 /** 面ひとつぶんの平面。UVはメートル */
@@ -104,19 +125,87 @@ export function buildShell(b: Building, opts: ShellOptions): Shell {
   const push = (geo: THREE.BufferGeometry, mat: THREE.Material, m: THREE.Matrix4) => pieces.push({ geo, mat, m });
 
   const H = b.height;
+  const roof = b.isTop ? b.roof : undefined;
+  const roofBuild: RoofBuild | null = roof
+    ? buildRoof({ minX: b.bounds.minX, maxX: b.bounds.maxX, minZ: b.bounds.minZ, maxZ: b.bounds.maxZ }, H, roof)
+    : null;
+  // 小屋裏を見せるなら、平らな天井は張らない
+  const openCeiling = Boolean(roof?.exposeCeiling && roofBuild);
 
   // ---- 床と天井 ----
   for (const r of b.rooms) {
     if (r.outline.length < 3) continue;
     push(slabGeometry(r.outline, true), finishMaterial(r.floor), mat4(0, 0.002, 0, 0, -Math.PI / 2));
-    push(slabGeometry(r.outline, false), finishMaterial(r.ceiling), mat4(0, H - 0.002, 0, 0, Math.PI / 2));
+    if (!openCeiling) {
+      push(slabGeometry(r.outline, false), finishMaterial(r.ceiling), mat4(0, H - 0.002, 0, 0, Math.PI / 2));
+    }
+  }
+
+  // ---- 屋根 ----
+  if (roof && roofBuild) {
+    const finish = FINISHES['roof_' + roof.material] ?? FINISHES['roof_kawara']!;
+    push(roofBuild.geometry, finishMaterial(finish), new THREE.Matrix4());
+    if (roofBuild.gableGeometry) {
+      push(roofBuild.gableGeometry, finishMaterial(b.rooms[0]?.wall ?? FINISHES['paint']!), new THREE.Matrix4());
+    }
+    // 軒先の見付け。厚みが無いと、板が載っているようにしか見えない
+    const fb = roofBuild.box;
+    const fascia = 0.16;
+    for (const [x0, z0, x1, z1] of [
+      [fb.minX, fb.minZ, fb.maxX, fb.minZ],
+      [fb.minX, fb.maxZ, fb.maxX, fb.maxZ],
+      [fb.minX, fb.minZ, fb.minX, fb.maxZ],
+      [fb.maxX, fb.minZ, fb.maxX, fb.maxZ],
+    ] as [number, number, number, number][]) {
+      const len = Math.hypot(x1 - x0, z1 - z0);
+      const ang = Math.atan2(z1 - z0, x1 - x0);
+      push(boxWorldUV(len, fascia, 0.04), TRIM.timber,
+        mat4((x0 + x1) / 2, roofBuild.eaveY - fascia / 2, (z0 + z1) / 2, -ang));
+    }
+
+    if (openCeiling) {
+      // 小屋裏の見え方。屋根の裏を、天井の材で張る
+      const inner = roofBuild.geometry.clone();
+      const pos = inner.attributes.position as THREE.BufferAttribute;
+      const nrm = inner.attributes.normal as THREE.BufferAttribute;
+      for (let i = 0; i < pos.count; i++) {
+        // 屋根の厚みぶん下げ、裏返して内側から見えるようにする
+        pos.setY(i, pos.getY(i) - 0.16);
+        nrm.setXYZ(i, -nrm.getX(i), -nrm.getY(i), -nrm.getZ(i));
+      }
+      // 面の向きを反転（三角形の頂点順を入れ替える）
+      flipWinding(inner);
+      pos.needsUpdate = true;
+      nrm.needsUpdate = true;
+      push(inner, finishMaterial(b.rooms[0]?.ceiling ?? FINISHES['ceiling_board']!), new THREE.Matrix4());
+
+      // 小屋梁。開けた小屋裏には、必ず横に渡る材が要る
+      const spanX = b.bounds.maxX - b.bounds.minX;
+      const spanZ = b.bounds.maxZ - b.bounds.minZ;
+      const alongX = spanX >= spanZ;
+      const count = Math.max(2, Math.min(6, Math.floor((alongX ? spanX : spanZ) / 1.82)));
+      for (let i = 1; i <= count; i++) {
+        const t = i / (count + 1);
+        if (alongX) {
+          push(boxWorldUV(spanZ, 0.28, 0.16), TRIM.timberDark,
+            mat4(b.bounds.minX + spanX * t, H + 0.18, (b.bounds.minZ + b.bounds.maxZ) / 2, Math.PI / 2));
+        } else {
+          push(boxWorldUV(spanX, 0.28, 0.16), TRIM.timberDark,
+            mat4((b.bounds.minX + b.bounds.maxX) / 2, H + 0.18, b.bounds.minZ + spanZ * t));
+        }
+      }
+    }
   }
 
   // ---- 壁 ----
   for (const w of b.walls) {
     const base = mat4(w.cx, 0, w.cz, -w.angle);
-    const mPlus = finishMaterial(w.finishPlus);
-    const mMinus = finishMaterial(w.finishMinus);
+    const outside = opts.exterior ? finishMaterial(b.exteriorFinish) : null;
+    // 外から見るときは、外に面した側だけ外部の材にする
+    const mPlus = outside && w.exterior && !w.openings.some((o) => o.outward === -1)
+      ? outside : finishMaterial(w.finishPlus);
+    const mMinus = outside && w.exterior && !w.openings.some((o) => o.outward === 1)
+      ? outside : finishMaterial(w.finishMinus);
     const th = w.thickness;
 
     for (const p of w.panels) {
@@ -144,6 +233,24 @@ export function buildShell(b: Building, opts: ShellOptions): Shell {
     for (const s of [1, -1]) {
       push(boxWorldUV(w.len, 0.032, 0.014), TRIM.timber,
         base.clone().multiply(mat4(0, H - 0.016, s * (th / 2 + 0.007))));
+    }
+
+    // 小屋裏を見せるとき、外壁は屋根の裏まで立ち上げる（そこから光が漏れないように）
+    if (openCeiling && roofBuild && roof && w.exterior) {
+      const steps = 10;
+      for (let i = 0; i < steps; i++) {
+        const t0 = i / steps;
+        const t1 = (i + 1) / steps;
+        const seg = w.len * (t1 - t0);
+        const mid = (t0 + t1) / 2;
+        const px = w.cx + Math.cos(w.angle) * (mid - 0.5) * w.len;
+        const pz = w.cz + Math.sin(w.angle) * (mid - 0.5) * w.len;
+        const top = ceilingHeightAt(px, pz, roofBuild, roof);
+        const h = top - H;
+        if (h <= 0.02) continue;
+        push(boxWorldUV(seg, h, th), mPlus,
+          base.clone().multiply(mat4((mid - 0.5) * w.len, H + h / 2, 0)));
+      }
     }
 
     // 建具

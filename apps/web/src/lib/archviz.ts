@@ -1,6 +1,6 @@
 import {
-  bearingToPlanHeading, pointInPolygon, solarPosition, sunTimes,
-  type Finish, type RenovationScene, type RoomScene, type Site, type XY,
+  bearingToPlanHeading, FINISHES, pointInPolygon, solarPosition, sunTimes,
+  type Finish, type RenovationScene, type Roof, type RoomScene, type Site, type XY,
 } from '@hiraku/core';
 
 /**
@@ -100,6 +100,14 @@ export interface Bounds {
 
 export interface Building {
   height: number;
+  /** 屋根。いちばん上の階のときだけ入る */
+  roof?: Roof;
+  /** この階がいちばん上か */
+  isTop: boolean;
+  /** この階の床の高さ(m)。下の階を積み上げた分 */
+  baseY: number;
+  /** 外壁の仕上げ */
+  exteriorFinish: Finish;
   walls: WallBuild[];
   posts: PostBuild[];
   beams: BeamBuild[];
@@ -146,8 +154,11 @@ export function buildBuilding(
   site?: Site | null,
   /** 見たい季節（その年の日付）。既定は今日 */
   when?: Date,
+  /** どの階を見ているか */
+  levelIndex = 0,
 ): Building | null {
-  const level = scene.model.levels[0];
+  const li = Math.min(levelIndex, scene.model.levels.length - 1);
+  const level = scene.model.levels[li];
   if (!level) return null;
   const H = (level.heightMm ?? 2400) / 1000;
   const nodeById = new Map(level.nodes.map((n) => [n.id, n] as const));
@@ -308,8 +319,19 @@ export function buildBuilding(
     }
   }
 
+  const isTop = li === scene.model.levels.length - 1;
+  // 下の階を積み上げた高さ。床組のぶんを少し足す
+  const baseY = scene.model.levels
+    .slice(0, li)
+    .reduce((y, lv) => y + (lv.heightMm ?? 2400) / 1000 + 0.32, 0);
+  const exteriorFinish =
+    FINISHES[scene.model.exteriorWall ?? 'siding_wood'] ?? FINISHES['siding_wood']!;
   return {
     height: H,
+    baseY,
+    exteriorFinish,
+    roof: isTop ? scene.model.roof : undefined,
+    isTop,
     walls,
     posts: [...postAt.values()],
     beams,

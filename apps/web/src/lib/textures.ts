@@ -253,6 +253,113 @@ function earth(seed = 5): MaterialMaps {
   return { map: toTexture(c), roughnessMap: grayTexture(rc), bumpMap: grayTexture(bc), repeatPerMeter };
 }
 
+/** 瓦。重なった段が、屋根の陰影をつくる */
+function kawara(seed = 21): MaterialMaps {
+  const S = texSize;
+  const [c, ctx] = makeCanvas(S);
+  const [rc, rctx] = makeCanvas(S);
+  const [bc, bctx] = makeCanvas(S);
+  ctx.fillStyle = '#3f4550';
+  ctx.fillRect(0, 0, S, S);
+  rctx.fillStyle = '#8c8c8c';
+  rctx.fillRect(0, 0, S, S);
+  bctx.fillStyle = '#808080';
+  bctx.fillRect(0, 0, S, S);
+  const r = rng(seed);
+  const rows = 6;
+  const cols = 6;
+  const rh = S / rows;
+  const cw = S / cols;
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      const x = j * cw;
+      const y = i * rh;
+      const tone = 0.86 + r() * 0.3;
+      ctx.fillStyle = `rgba(${Math.round(63 * tone)},${Math.round(69 * tone)},${Math.round(80 * tone)},1)`;
+      ctx.fillRect(x, y, cw, rh);
+      // 山の丸み
+      const g = ctx.createLinearGradient(x, 0, x + cw, 0);
+      g.addColorStop(0, 'rgba(0,0,0,.34)');
+      g.addColorStop(0.42, 'rgba(255,255,255,.12)');
+      g.addColorStop(1, 'rgba(0,0,0,.34)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x, y, cw, rh);
+      // 段の影
+      ctx.fillStyle = 'rgba(0,0,0,.46)';
+      ctx.fillRect(x, y, cw, rh * 0.13);
+      bctx.fillStyle = 'rgba(0,0,0,.7)';
+      bctx.fillRect(x, y, cw, rh * 0.13);
+      bctx.fillStyle = 'rgba(255,255,255,.24)';
+      bctx.fillRect(x + cw * 0.42, y + rh * 0.15, cw * 0.16, rh * 0.85);
+    }
+  }
+  noise(ctx, S, 8, seed);
+  const repeatPerMeter = 1 / 1.9; // 1タイル ≒ 6枚分
+  return { map: toTexture(c), roughnessMap: grayTexture(rc), bumpMap: grayTexture(bc), repeatPerMeter };
+}
+
+/** 立平・角波のガルバリウム。縦のリブだけで金属に見える */
+function ribbedMetal(seed = 23): MaterialMaps {
+  const S = texSize;
+  const [c, ctx] = makeCanvas(S);
+  const [rc, rctx] = makeCanvas(S);
+  const [bc, bctx] = makeCanvas(S);
+  ctx.fillStyle = '#5a5f63';
+  ctx.fillRect(0, 0, S, S);
+  rctx.fillStyle = '#6a6a6a';
+  rctx.fillRect(0, 0, S, S);
+  bctx.fillStyle = '#808080';
+  bctx.fillRect(0, 0, S, S);
+  const ribs = 8;
+  const rw = S / ribs;
+  for (let i = 0; i < ribs; i++) {
+    const x = i * rw;
+    const g = ctx.createLinearGradient(x, 0, x + rw, 0);
+    g.addColorStop(0, 'rgba(0,0,0,.3)');
+    g.addColorStop(0.5, 'rgba(255,255,255,.16)');
+    g.addColorStop(1, 'rgba(0,0,0,.3)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, 0, rw, S);
+    bctx.fillStyle = 'rgba(255,255,255,.4)';
+    bctx.fillRect(x + rw * 0.44, 0, rw * 0.12, S);
+  }
+  noise(ctx, S, 5, seed);
+  return { map: toTexture(c), roughnessMap: grayTexture(rc), bumpMap: grayTexture(bc), repeatPerMeter: 1 / 1.2 };
+}
+
+/** スレート。ずらして重ねた平板 */
+function shingle(seed = 27): MaterialMaps {
+  const S = texSize;
+  const [c, ctx] = makeCanvas(S);
+  const [rc, rctx] = makeCanvas(S);
+  const [bc, bctx] = makeCanvas(S);
+  ctx.fillStyle = '#4c4a48';
+  ctx.fillRect(0, 0, S, S);
+  rctx.fillStyle = '#b4b4b4';
+  rctx.fillRect(0, 0, S, S);
+  bctx.fillStyle = '#808080';
+  bctx.fillRect(0, 0, S, S);
+  const r = rng(seed);
+  const rows = 8;
+  const rh = S / rows;
+  for (let i = 0; i < rows; i++) {
+    const y = i * rh;
+    const off = (i % 2) * (S / 12);
+    for (let j = -1; j < 7; j++) {
+      const x = off + j * (S / 6);
+      const tone = 0.88 + r() * 0.24;
+      ctx.fillStyle = `rgba(${Math.round(76 * tone)},${Math.round(74 * tone)},${Math.round(72 * tone)},1)`;
+      ctx.fillRect(x + 1, y + 1, S / 6 - 2, rh - 2);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,.4)';
+    ctx.fillRect(0, y, S, 2);
+    bctx.fillStyle = 'rgba(0,0,0,.6)';
+    bctx.fillRect(0, y, S, 2);
+  }
+  noise(ctx, S, 9, seed);
+  return { map: toTexture(c), roughnessMap: grayTexture(rc), bumpMap: grayTexture(bc), repeatPerMeter: 1 / 1.6 };
+}
+
 /** 仕上げIDから質感を得る（生成結果は使い回す） */
 export function materialMaps(finishId: string): MaterialMaps | null {
   if (typeof document === 'undefined') return null;
@@ -270,6 +377,13 @@ export function materialMaps(finishId: string): MaterialMaps | null {
     case 'cloth': m = plaster('#efeae2', 6); break;
     case 'ceiling_paint': m = plaster('#f2efe9', 8); break;
     case 'cushion_floor': m = plaster('#c8b89a', 9); break;
+    case 'siding_wood': m = wood('#6f5a44', 0.16, 31); break;
+    case 'yakisugi': m = wood('#2e2a26', 0.2, 33); break;
+    case 'mortar_out': m = plaster('#b9b3a8', 35); break;
+    case 'shikkui_out': m = plaster('#e6e1d5', 37); break;
+    case 'roof_kawara': m = kawara(); break;
+    case 'roof_metal': m = ribbedMetal(); break;
+    case 'roof_shingle': m = shingle(); break;
     default: m = plaster('#e8e4dc', 2); break;
   }
   cache.set(finishId, m);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { applyOps, detectRooms, type RenovationOp, type SpaceModel } from '@hiraku/core';
@@ -296,25 +296,25 @@ function ProposalSheet({ p, model, index }: { p: Proposal; model: SpaceModel; in
         </p>
       )}
 
-      {p.fit.budgetYen !== undefined && (
-        <section className={'budget' + (p.fit.over ? ' is-over' : '')}>
+      {p.fit?.budgetYen !== undefined && (
+        <section className={'budget' + (p.fit!.over ? ' is-over' : '')}>
           <h3>予算に対して</h3>
           <div className="budget-row">
             <span>この案の見込み</span>
-            <b className="num">{yen(p.fit.lowYen)}〜{yen(p.fit.highYen)}円</b>
+            <b className="num">{yen(p.fit!.lowYen)}〜{yen(p.fit!.highYen)}円</b>
           </div>
           <div className="budget-row">
             <span>聞いた予算</span>
-            <b className="num">{yen(p.fit.budgetYen)}円</b>
+            <b className="num">{yen(p.fit!.budgetYen)}円</b>
           </div>
           <div className="budget-bar">
-            <span style={{ width: `${Math.min(100, Math.round((p.fit.highYen / p.fit.budgetYen) * 100))}%` }} />
+            <span style={{ width: `${Math.min(100, Math.round((p.fit!.highYen / p.fit!.budgetYen) * 100))}%` }} />
           </div>
           <p>
-            {p.fit.over
+            {p.fit!.over
               ? '開けるために要る手だけで、予算をはみ出しています。予算を上げるか、用途を軽い形に変えるかの二択です。'
-              : p.fit.trimmed.length
-                ? `${p.fit.trimmed.length}件を後ろの段から外して、予算に収めました。外したものは下に書いています。`
+              : p.fit!.trimmed.length
+                ? `${p.fit!.trimmed.length}件を後ろの段から外して、予算に収めました。外したものは下に書いています。`
                 : '予算のなかに収まっています。'}
           </p>
         </section>
@@ -400,9 +400,15 @@ function ProposalSheet({ p, model, index }: { p: Proposal; model: SpaceModel; in
 export default function PlanPage() {
   const model = useEditor((s) => s.model);
   const proposals = useEditor((s) => s.proposals);
+  const hearing = useEditor((s) => s.hearing);
   const reset = useEditor((s) => s.resetHearing);
   const make = useEditor((s) => s.makeProposals);
-  const hasModel = model.levels[0]!.walls.length > 0;
+  const hasModel = model.levels.some((lv) => lv.walls.length > 0);
+
+  // 案は持ち越さない（形が変わると古い案が壊れる）。聞いた内容から作り直す
+  useEffect(() => {
+    if (!proposals.length && hasModel && canPropose(hearing)) make();
+  }, [proposals.length, hasModel, hearing, make]);
 
   if (!hasModel) {
     return (
