@@ -116,7 +116,7 @@ describe('単価帳（CSV取り込み）', () => {
     const rooms = detectRooms(model.levels[0]!);
     const r = rooms.find((x) => x.name === '和室A')!;
     // まだ調べていない項目で試す（調べ済みの項目は最初から verified のため）
-    const base = estimatePlan(model, [{ op: 'change_ceiling', roomId: r.id, finishId: 'ceiling_paint' }]);
+    const base = estimatePlan(model, [{ op: 'change_ceiling', roomId: r.id, finishId: 'ceiling_board' }]);
     expect(base.lines[0]!.verified).toBe(false);
     expect(base.lines[0]!.priceSource).toContain('未検証');
 
@@ -157,18 +157,28 @@ describe('単価の出どころ', () => {
     expect(f.materialUnitPrice.low).toBe(4200);
     expect(f.materialUnitPrice.source).toBe('○○建材 2026-08');
     expect(f.materialUnitPrice.asOf).toBe('2026-08');
-    // 触っていない項目は未検証のまま
-    expect(items.find((w) => w.id === 'paint')!.materialUnitPrice.verified).toBe(false);
+    // 触っていない・まだ調べていない項目は未検証のまま
+    expect(items.find((w) => w.id === 'ceiling_board')!.materialUnitPrice.verified).toBe(false);
   });
 
   it('未検証の項目は、金額の幅が大きい順に返る', () => {
+    // まだ調べていない項目を含む案で確かめる
     const est = estimatePlan(model(), [
-      { op: 'change_floor', roomId: firstRoomId(), finishId: 'flooring' },
-      { op: 'electrical', work: 'add_outlet', count: 4 },
+      { op: 'change_ceiling', roomId: firstRoomId(), finishId: 'ceiling_board' },
+      { op: 'insulate', target: 'ceiling' },
+      { op: 'electrical', work: 'lighting_diy', count: 3 },
     ]);
     expect(est.unverified.length).toBeGreaterThan(0);
     const impacts = est.unverified.map((u) => u.impactYen);
     expect([...impacts].sort((a, b) => b - a)).toEqual(impacts);
+  });
+
+  it('調べ済みの項目だけの案なら、未検証は出ない', () => {
+    const est = estimatePlan(model(), [
+      { op: 'change_floor', roomId: firstRoomId(), finishId: 'flooring' },
+      { op: 'electrical', work: 'add_outlet', count: 4 },
+    ]);
+    expect(est.unverified).toEqual([]);
   });
 
   it('CSVは新旧どちらの並びでも読める', () => {
