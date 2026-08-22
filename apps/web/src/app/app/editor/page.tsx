@@ -17,6 +17,7 @@ import PlanCanvas from '@/components/PlanCanvas';
 import { CONF_COLOR, CONF_LABEL, OPENING_LABEL } from '@/lib/colors';
 import { backdropSizeMm, suggestNextMeasurements } from '@hiraku/core';
 import BackdropLoader from '@/components/BackdropLoader';
+import EditorStart from '@/components/EditorStart';
 import { useEditor, type Tool } from '@/lib/store';
 
 const Preview3D = dynamic(() => import('@/components/Preview3D'), { ssr: false });
@@ -185,8 +186,9 @@ export default function EditorPage() {
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-[1fr_360px]">
-        <div className="min-h-0">
+        <div className="relative min-h-0">
           <PlanCanvas onFitReady={onFitReady} />
+          {level.walls.length === 0 && !level.backdrop && <EditorStart />}
         </div>
         <aside className="flex min-h-0 flex-col overflow-y-auto"
           style={{ borderLeft: '1px solid var(--border-soft)', background: 'var(--card)' }}>

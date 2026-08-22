@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { asset } from '@/lib/ai';
+import QuickBar from '@/components/QuickBar';
 import './landing.css';
 
 const USES = [
@@ -40,6 +41,8 @@ export default function Landing() {
       className="landing"
       style={{ ['--tex-canvas' as string]: `url("${asset('/img/tex-canvas.png')}")` } as React.CSSProperties}
     >
+      <QuickBar />
+
       <header>
         <div className="wrap">
           <div className="bar">
@@ -47,7 +50,7 @@ export default function Landing() {
             <nav className="mainnav" aria-label="主要ナビゲーション">
               <a href="#features">機能</a><a href="#usecases">できること</a><a href="#onsite">現地調査</a><a href="#pricing">プラン</a><a href="#faq">よくある質問</a>
             </nav>
-            <Link className="btn btn-cta btn-sm" href="/app">はじめる</Link>
+            <Link className="btn btn-cta btn-sm" href="/app">道具を開く</Link>
           </div>
         </div>
       </header>
