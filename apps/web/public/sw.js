@@ -6,7 +6,7 @@
  * 置き場所（basePath）は自分の登録位置から拾うので、公開先が変わっても直さなくていい。
  */
 
-const VERSION = 'hiraku-2026-08-22-2';
+const VERSION = 'hiraku-2026-08-22-3';
 const SHELL = `${VERSION}-shell`;
 const ASSETS = `${VERSION}-assets`;
 const PAGES = `${VERSION}-pages`;
@@ -27,7 +27,8 @@ const PRECACHE = [
 
 /** ページ1枚と、それが呼ぶ部品まで一緒に手元へ入れる */
 async function precachePage(shell, assets, path) {
-  const url = `${SCOPE.pathname}${path}`;
+  // 相対パスを基準にすると URL を組み立てられない。必ず絶対URLにしてから使う
+  const url = new URL(path, SCOPE).href;
   let res;
   try {
     res = await fetch(url, { cache: 'reload' });
