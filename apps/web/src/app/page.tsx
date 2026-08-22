@@ -191,7 +191,7 @@ export default function Landing() {
 
             {/*B: 実写*/}
             <div className="ph">
-              <img src="/img/img-studio.webp" alt="空き家を改装したスペースで作業する人たち" loading="lazy" />
+              <img src="/img/scene-trace.svg" alt="古民家の座敷でスマホをかざし、室内を記録している様子（イラスト）" loading="lazy" />
             </div>
 
             {/*C: オレンジ帯*/}
@@ -415,7 +415,7 @@ export default function Landing() {
       <section className="dotted" style={{borderRadius:'0',marginTop:'clamp(24px,4vw,48px)'}}>
         <div className="wrap">
           <div className="htband rv" style={{marginBottom:'clamp(48px,6vw,72px)'}}>
-            <img src="/img/img-halftone.webp" alt="改装したスペースで人が作業している様子（網点加工）" loading="lazy" />
+            <img src="/img/scene-halftone.png" alt="改装中の土間で作業する人たち（網点のイラスト）" loading="lazy" />
             <div className="card">
               <h3>調べる時間を、つくる時間へ</h3>
               <p>制度を調べるのに数週間かけていた工程を、一時間に縮めます。浮いた時間は、どんな場所にするかを考えることに使えます。</p>
@@ -437,7 +437,7 @@ export default function Landing() {
       <section style={{paddingTop:'0'}}>
         <div className="wrap rv">
           <div className="editorial">
-            <div className="bgph ph"><img src="/img/img-studio_duo.webp" alt="改装したスペースで人が集まり作業している様子" loading="lazy" /></div>
+            <div className="bgph ph"><img src="/img/scene-work.svg" alt="改装中の土間で人が集まり作業している様子（イラスト）" loading="lazy" /></div>
             <div className="veil"></div>
             <div className="ed-in">
               <span className="tag" style={{background:'rgba(255,255,255,.14)',borderColor:'rgba(255,255,255,.22)',color:'#fff'}}>なぜ作っているか</span>
@@ -445,7 +445,7 @@ export default function Landing() {
               <p>使われていない家は、全国に900万戸あると言われています。そのほとんどは、活かしたい人がいないからではなく、活かせるかどうかを確かめる手段がないから止まっています。<br /><br />調べ方さえ手に入れば、あとは人の手が動きます。HIRAKUは、その最初のひと押しだけを引き受けます。</p>
             </div>
           </div>
-          <p className="phcap">Photo: Double Union (CC BY-SA 4.0) ／ 掲載写真はイメージです</p>
+          <p className="phcap">図版はすべて自作のイラストです（写真ではありません）</p>
         </div>
       </section>
 

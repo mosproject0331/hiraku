@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 840" width="900" height="840" role="img" aria-label="古民家の座敷でスマホをかざして室内を記録している人">
+<defs>
+  <filter id="sgr"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+  <clipPath id="sclip"><rect width="900" height="840"/></clipPath>
+</defs>
+<g clip-path="url(#sclip)">
+  <rect width="900" height="840" fill="#efe7d8"/>
+
+  <!-- 奥の障子 -->
+  <rect x="96" y="150" width="708" height="392" fill="#fdf9ee"/>
+  <g stroke="#6b5340" stroke-width="7" fill="none">
+    <path d="M96 150h708v392H96z"/>
+    <path d="M332 150v392M568 150v392"/>
+    <path d="M96 248h708M96 346h708M96 444h708"/>
+  </g>
+  <g stroke="#c9a06a" stroke-width="3" fill="none" opacity=".7">
+    <path d="M214 150v392M450 150v392M686 150v392"/>
+  </g>
+
+  <!-- 梁と柱 -->
+  <rect x="60" y="92" width="780" height="46" fill="#5c4633"/>
+  <rect x="60" y="138" width="34" height="470" fill="#6b5340"/>
+  <rect x="806" y="138" width="34" height="470" fill="#6b5340"/>
+  <rect x="0" y="0" width="900" height="94" fill="#4a3728"/>
+
+  <!-- 畳 -->
+  <rect x="0" y="542" width="900" height="298" fill="#d8cdb2"/>
+  <g stroke="#b9ab8a" stroke-width="4" fill="none">
+    <path d="M0 604h900M0 700h900M0 792h900"/>
+    <path d="M300 542v298M600 542v298"/>
+  </g>
+
+  <!-- 点群（スキャンの粒） -->
+  <g fill="#ff773c">
+    <circle cx="150" cy="206" r="5"/><circle cx="238" cy="188" r="4"/><circle cx="322" cy="222" r="5"/>
+    <circle cx="404" cy="196" r="4"/><circle cx="492" cy="230" r="5"/><circle cx="578" cy="200" r="4"/>
+    <circle cx="664" cy="228" r="5"/><circle cx="748" cy="192" r="4"/>
+    <circle cx="132" cy="330" r="4"/><circle cx="266" cy="352" r="5"/><circle cx="398" cy="322" r="4"/>
+    <circle cx="530" cy="358" r="5"/><circle cx="662" cy="330" r="4"/><circle cx="782" cy="356" r="5"/>
+    <circle cx="176" cy="470" r="5"/><circle cx="310" cy="446" r="4"/><circle cx="452" cy="482" r="5"/>
+    <circle cx="590" cy="452" r="4"/><circle cx="726" cy="486" r="5"/>
+    <circle cx="204" cy="596" r="4"/><circle cx="700" cy="612" r="4"/>
+  </g>
+  <!-- 走査線 -->
+  <g stroke="#ff773c" stroke-width="3" opacity=".55" fill="none">
+    <path d="M470 596 L120 214M470 596 L292 190M470 596 L470 186M470 596 L652 196M470 596 L800 220"/>
+  </g>
+
+  <!-- 人物（スマホをかざす） -->
+  <g fill="#2f3a56">
+    <circle cx="470" cy="470" r="44"/>
+    <path d="M470 520c-62 0-104 40-112 104l-10 116h244l-10-116c-8-64-50-104-112-104z"/>
+    <path d="M392 566c-16 22-24 50-24 78l40 8 22-70z"/>
+    <path d="M548 566c16 22 24 50 24 78l-40 8-22-70z"/>
+  </g>
+  <!-- スマホ画面 -->
+  <rect x="386" y="536" width="86" height="140" rx="10" fill="#1e1e24"/>
+  <rect x="396" y="548" width="66" height="116" rx="4" fill="#f9f7f4"/>
+  <g stroke="#a8a29a" stroke-width="4" fill="none"><path d="M406 566h46v82h-46z"/></g>
+  <path d="M429 566v82" stroke="#2f7a58" stroke-width="4"/>
+  <path d="M406 612h46" stroke="#c08a12" stroke-width="4"/>
+
+  <!-- 差し込む光 -->
+  <path d="M96 150 L804 150 L640 542 L260 542Z" fill="#ffffff" opacity=".16"/>
+  <rect width="900" height="840" filter="url(#sgr)" opacity=".13" style="mix-blend-mode:multiply"/>
+</g>
+</svg>

@@ -1,0 +1,16 @@
+# Netlify で公開するときの設定。
+#   1. https://app.netlify.com で「Add new site」→ このリポジトリを指定
+#   2. 環境変数に ANTHROPIC_API_KEY と LLM_MODE=live を入れると実AIに繋がる（未設定ならモックで動く）
+# 注意: プロジェクトの保存(/api/projects)はサーバーのファイルに書くため、
+#       公開環境では再デプロイで消えます。ブラウザ側(localStorage)には残ります。
+#       本格運用するなら Repository を Cloudflare D1 等に差し替えてください（NEXT_STEPS参照）。
+[build]
+  command = "pnpm install --dangerously-allow-all-builds && pnpm --filter web build"
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_VERSION = "11"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

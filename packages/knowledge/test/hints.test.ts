@@ -28,19 +28,52 @@ describe('ナレッジ層', () => {
     expect(hints.some((h) => h.id === 'gap-as-seed')).toBe(true);
   });
 
-  it('3案が出た後は暮らし・引き算・保険のいずれかが出る', () => {
-    const hints = nextHints(sig({ hasPlans: true, hasModel: true, roomCount: 5 }), 4);
-    const ids = hints.map((h) => h.id);
+  it('3案が出た後は暮らし・引き算の問いが出る', () => {
+    const ids = nextHints(sig({ hasPlans: true, hasModel: true, roomCount: 5 }), 12).map((h) => h.id);
     expect(ids).toContain('everyday');
-    expect(ids).toContain('ws-insurance');
+    expect(ids).toContain('subtraction');
   });
 
-  it('こころが実務より先に並ぶ', () => {
-    const hints = nextHints(sig({ hasPlans: true, hasModel: true, roomCount: 5, measuredCount: 1 }), 10);
-    const firstJitsumu = hints.findIndex((h) => h.kind === 'jitsumu');
-    const lastKokoro = hints.map((h) => h.kind).lastIndexOf('kokoro');
-    expect(lastKokoro).toBeLessThan(firstJitsumu === -1 ? Infinity : firstJitsumu + 100);
-    expect(hints[0]!.kind).toBe('kokoro');
+  it('安全・権利の警告は、こころの問いより先に出る（押し出されない）', () => {
+    const hints = nextHints(sig({ hasPlans: true, hasModel: true, roomCount: 5 }), 3);
+    expect(hints[0]!.id).toBe('ws-insurance');
+    expect(hints[0]!.urgent).toBe(true);
+  });
+
+  it('緊急でなければ、こころが実務より先に並ぶ', () => {
+    const hints = nextHints(sig({ hasModel: true, roomCount: 5, measuredCount: 0 }), 10);
+    const rest = hints.filter((h) => !h.urgent);
+    const firstJitsumu = rest.findIndex((h) => h.kind === 'jitsumu');
+    const lastKokoro = rest.map((h) => h.kind).lastIndexOf('kokoro');
+    if (firstJitsumu !== -1 && lastKokoro !== -1) expect(lastKokoro).toBeLessThan(firstJitsumu);
+  });
+
+  it('27パターンを広くカバーしている', () => {
+    const sources = new Set(HINTS.map((h) => h.source.match(/pattern-\d+/g) ?? []).flat());
+    expect(sources.size).toBeGreaterThanOrEqual(16);
+    expect(HINTS.length).toBeGreaterThanOrEqual(24);
+  });
+
+  it('すべてのヒントに発火条件と十分な長さの文がある', () => {
+    for (const h of HINTS) {
+      expect(typeof h.when).toBe('function');
+      expect(h.text.length).toBeGreaterThan(40);
+      expect(['kokoro', 'jitsumu']).toContain(h.kind);
+    }
+  });
+
+  it('idが重複しない', () => {
+    expect(new Set(HINTS.map((h) => h.id)).size).toBe(HINTS.length);
+  });
+
+  it('どの状態でも最低1つは返る', () => {
+    const states = [
+      sig(),
+      sig({ hasDiagnosis: true }),
+      sig({ hasDiagnosis: true, heavyFindings: 4 }),
+      sig({ hasPlans: true, hasModel: true, roomCount: 4, measuredCount: 3, todoDone: 4, todoTotal: 6 }),
+    ];
+    for (const s of states) expect(nextHints(s).length).toBeGreaterThanOrEqual(1);
   });
 
   it('決定的である(同じ入力→同じ出力)', () => {

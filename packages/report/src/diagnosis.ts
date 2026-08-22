@@ -17,13 +17,23 @@ function renderRegionSection(regionPackId?: string): string {
   if (!regionPackId) return '';
   const pack = getRegionPack(regionPackId);
   if (!pack) return '';
-  const item = (i: { title: string; summary: string }) =>
-    `<li><b>${esc(i.title)}</b> — ${esc(i.summary)}<span class="badge">参考値・要検証</span></li>`;
+  const item = (i: { title: string; summary: string; url?: string; tel?: string }) => {
+    const links: string[] = [];
+    if (i.tel) links.push(`電話 ${esc(i.tel)}`);
+    if (i.url) links.push(`<a href="${esc(i.url)}">${esc(i.url)}</a>`);
+    return (
+      `<li><b>${esc(i.title)}</b><span class="badge">要・窓口確認</span><br>${esc(i.summary)}` +
+      (links.length ? `<br><span class="meta">${links.join(' / ')}</span>` : '') +
+      `</li>`
+    );
+  };
   return `
-    <h2>地域情報(パック適用時): ${esc(pack.name)}</h2>
-    <p class="meta">この地域パックの内容はプレースホルダです。実データの投入・検証が必要です。</p>
-    <h3>条例・上乗せ</h3><ul>${pack.ordinances.map(item).join('')}</ul>
-    <h3>補助金</h3><ul>${pack.subsidies.map(item).join('')}</ul>
+    <h2>地域情報: ${esc(pack.name)}</h2>
+    <p class="meta">
+      公開情報にもとづく整理です。制度は年度ごとに変わるため、金額・要件・期間は必ず窓口でご確認ください。
+    </p>
+    <h3>使えそうな補助制度</h3><ul>${pack.subsidies.map(item).join('')}</ul>
+    <h3>この地域で先に確かめること</h3><ul>${pack.ordinances.map(item).join('')}</ul>
     <h3>窓口</h3><ul>${pack.contacts.map(item).join('')}</ul>
     <h3>ローカル知見</h3><ul>${pack.localKnowledge.map(item).join('')}</ul>`;
 }

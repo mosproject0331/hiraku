@@ -26,6 +26,11 @@ export interface ProjectSignals {
 export interface Hint {
   id: string;
   kind: 'kokoro' | 'jitsumu';
+  /**
+   * 安全・法令・お金の取り返しがつかない論点。
+   * こころの問いより先に出す（黙っていると事故や停止に直結するため）。
+   */
+  urgent?: boolean;
   /** 内部参照用の出典(UIに出さない) */
   source: string;
   text: string;
@@ -90,8 +95,109 @@ export const HINTS: Hint[] = [
     when: (s) => s.hasPlans,
   },
   {
+    id: 'talk-to-two',
+    kind: 'kokoro',
+    source: 'pattern-02 わくわく提案',
+    text: '2人で考えていると、話は深まる代わりに閉じていきます。いま面白がっていることを、外に一度こぼしてみませんか。本気で楽しんでいる様子そのものが、次の仲間を連れてきます。',
+    when: (s) => s.hasPlans && s.todoDone === 0,
+  },
+  {
+    id: 'roles-from-people',
+    kind: 'kokoro',
+    source: 'pattern-04 やくわりリノベ',
+    text: '手伝ってほしい人の顔を思い浮かべてから、その人に合う役割をつくっていますか。「募集して集める」より、「この人だから頼みたい」の順のほうが、一度来た人が何度も来てくれます。',
+    when: (s) => s.hasPlans && s.measuredCount > 0,
+  },
+  {
+    id: 'expert-beside',
+    kind: 'kokoro',
+    source: 'pattern-05 コミュニティ＋専門家',
+    text: '専門家を探すとき、「安く早くやってくれる人」ではなく「素人にもわかるように教えてくれる人」を探してみてください。関わった人みんなの技量が上がり、数年後の補修にも力を貸してもらえます。',
+    when: (s) => s.hasPlans,
+  },
+  {
+    id: 'no-blueprint',
+    kind: 'kokoro',
+    source: 'pattern-06 無用の設計図',
+    text: 'できあがった図面を配って作業を割り振ると、手は動いても愛着は生まれません。誰が考えたのか分からなくなるくらい皆で迷った場所こそ、後から効いてきます。決めきらない余白を残せていますか。',
+    when: (s) => s.hasPlans && s.roomCount > 0,
+  },
+  {
+    id: 'why-you-started',
+    kind: 'kokoro',
+    source: 'pattern-07 過去と未来の曲がり角',
+    text: '難しい条件が並ぶと、逃げ出したくなる日が必ず来ます。そのときは、この家がこれまでどう使われてきたか、近所の人がどんな記憶を持っているかを思い出してみてください。自分の事情より、その連なりのほうが足を前に出させてくれます。',
+    when: (s) => s.hasDiagnosis && s.heavyFindings >= 2 && s.todoDone === 0,
+  },
+  {
+    id: 'always-unfinished',
+    kind: 'kokoro',
+    source: 'pattern-08 これからも追い風',
+    text: '完成させようとしすぎていませんか。空き家活用は、ずっと未完のままでいい種類のものです。今回やらないことを決めておくと、後から関わる人の入る隙間が残ります。',
+    when: (s) => s.hasPlans && s.measuredCount > 2,
+  },
+  {
+    id: 'successors',
+    kind: 'kokoro',
+    source: 'pattern-09 みんなが後継者',
+    text: 'ずっと自分が続けなければ、と思っていませんか。魅力づくり・保守・会計を複数人で分けておくと、誰かが抜けても回ります。混乱期はだいたい来ます。来ると知っていれば越えられます。',
+    when: (s) => s.hasPlans && s.todoDone > 2,
+  },
+  {
+    id: 'walk-the-town',
+    kind: 'kokoro',
+    source: 'pattern-20 日頃のアンテナ / 21 地に学ぶ',
+    text: 'この物件の周りを、目的なく歩いてみましたか。観光冊子でも行政の案内でも構いません。その町ならではの手がかりは、机の上ではなく道の上で見つかります。近所の方にこの家の思い出を聞けたら、それが一番の資料になります。',
+    when: (s) => s.hasDiagnosis && !s.hasPlans,
+  },
+  {
+    id: 'compass',
+    kind: 'kokoro',
+    source: 'pattern-22 出会いの羅針盤',
+    text: '窓口を回るとき、はじめに仲良くなった一人から次の人を紹介してもらう形にすると、話が驚くほど早く進みます。誰から辿るか、思い当たる方はいますか。',
+    when: (s) => s.todoTotal > 0 && s.todoDone > 0 && s.todoDone < 3,
+  },
+  {
+    id: 'time-capital',
+    kind: 'kokoro',
+    source: 'pattern-24 時（とき）持ち',
+    text: 'お金や技術が足りないと感じるときは、自分の時間を先に差し出す手があります。地方では長い時間をかけた交換で関係ができています。お金では買えないものは、たいていそこから来ます。',
+    when: (s) => s.hasPlans && s.heavyFindings > 0,
+  },
+  {
+    id: 'introduce-out',
+    kind: 'kokoro',
+    source: 'pattern-25 盛り上げ循環',
+    text: '来てくれた人を、近所のお店や人に紹介していますか。紹介した先からの反応を持ち帰って伝えると、輪が回りはじめます。ひとつの建物だけでできることには限りがあります。',
+    when: (s) => s.hasPlans && s.todoDone >= 3,
+  },
+  {
+    id: 'gap-not-flaw',
+    kind: 'jitsumu',
+    urgent: true,
+    source: '実務(相続・権利)',
+    text: '所有者の登記は確認しましたか。相続登記が済んでいないと、話が進んだ後で相続人全員の合意が必要だと分かり、そこで止まります。実務で最も多い停止理由です。早い段階で登記簿を取っておくと安心です。',
+    when: (s) => s.hasDiagnosis && !s.hasPlans,
+  },
+  {
+    id: 'contract-years',
+    kind: 'jitsumu',
+    urgent: true,
+    source: '実務(契約)',
+    text: '借りて改修するなら、契約年数と改修費が釣り合っているか確かめてください。3年契約に数百万円を入れると回収できません。原状回復の免除と、所有者に相続が起きたときの扱いも、書面で確認しておきたい項目です。',
+    when: (s) => s.hasPlans && s.hasDiagnosis,
+  },
+  {
+    id: 'subsidy-timing',
+    kind: 'jitsumu',
+    source: '実務(補助金)',
+    text: '補助金はほとんどが「あと払い」です。採択されても、工事費はいったん自分で払う必要があります。つなぎの資金をどうするかを、申請より先に考えておいてください。',
+    when: (s) => s.hasPlans && s.todoDone > 0,
+  },
+  {
     id: 'ws-insurance',
     kind: 'jitsumu',
+    urgent: true,
     source: '実務(施工WS安全)',
     text: '施工を手伝ってくれる人の保険(傷害・施設賠償)は決めましたか。ボランティアの怪我はイベント保険等でカバーできます。ここが抜けたまま事故が起きると、活動そのものが止まります。工具の使い方説明と記録もセットで。',
     when: (s) => s.hasPlans,
@@ -113,12 +219,15 @@ export const HINTS: Hint[] = [
 ];
 
 /**
- * 状態に合う問い・案内を返す。こころ優先で最大max件。
+ * 状態に合う問い・案内を返す。
+ * 順序は「取り返しのつかない実務 → こころの問い → その他の実務」。
+ * 安全・権利・契約の警告だけは、黙っていると事故や停止に直結するため先に出す。
  * 同じ状態では常に同じ結果(決定的)。
  */
-export function nextHints(s: ProjectSignals, max = 2): Hint[] {
+export function nextHints(s: ProjectSignals, max = 3): Hint[] {
   const hit = HINTS.filter((h) => h.when(s));
-  const kokoro = hit.filter((h) => h.kind === 'kokoro');
-  const jitsumu = hit.filter((h) => h.kind === 'jitsumu');
-  return [...kokoro, ...jitsumu].slice(0, max);
+  const urgent = hit.filter((h) => h.urgent);
+  const kokoro = hit.filter((h) => !h.urgent && h.kind === 'kokoro');
+  const jitsumu = hit.filter((h) => !h.urgent && h.kind === 'jitsumu');
+  return [...urgent, ...kokoro, ...jitsumu].slice(0, max);
 }

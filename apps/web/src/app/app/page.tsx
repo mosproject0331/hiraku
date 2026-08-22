@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import LlmStatus from '@/components/LlmStatus';
 
 const CARDS = [
   {
@@ -44,7 +45,9 @@ export default function AppHome() {
       <div className="hb-bar">
         <Link href="/" className="hb-logo"><span className="dot" />HIRAKU</Link>
         <span className="hb-badge" style={{ marginLeft: 4 }}>開発版</span>
-        <Link href="/" className="hb-btn hb-outline" style={{ marginLeft: 'auto' }}>
+        <span style={{ marginLeft: 'auto' }} />
+        <LlmStatus />
+        <Link href="/" className="hb-btn hb-outline" style={{ marginLeft: 8 }}>
           紹介ページ
         </Link>
       </div>

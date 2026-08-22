@@ -7,6 +7,7 @@ import { runDiagnosis } from '@hiraku/rules';
 import { renderDiagnosisReport, renderSurveyReport } from '@hiraku/report';
 import { estimatePlan } from '@hiraku/estimate';
 import { nextHints } from '@hiraku/knowledge';
+import { getRegionPack, listRegionPacks } from '@hiraku/regionpack';
 import ReportFrame from '@/components/ReportFrame';
 import { useEditor } from '@/lib/store';
 
@@ -165,11 +166,14 @@ export default function ProjectPage() {
                       key={h.id}
                       className={
                         'rounded-md px-4 py-3 text-sm leading-relaxed ' +
-                        (h.kind === 'kokoro'
-                          ? 'bg-stone-50 text-stone-700'
-                          : 'border border-amber-200 bg-amber-50 text-amber-900')
+                        (h.urgent
+                          ? 'border border-amber-300 bg-amber-50 text-amber-900'
+                          : h.kind === 'kokoro'
+                            ? 'bg-stone-50 text-stone-700'
+                            : 'border border-slate-200 bg-slate-50 text-slate-700')
                       }
                     >
+                      {h.urgent && <b style={{ display: 'block', marginBottom: 4 }}>先に確かめておきたいこと</b>}
                       {h.text}
                     </p>
                   ))}
@@ -202,6 +206,41 @@ export default function ProjectPage() {
                   </li>
                 ))}
               </ul>
+            </section>
+
+            <section className="rounded-lg border border-slate-300 bg-white p-4">
+              <h2 className="font-semibold">地域パック</h2>
+              <p className="text-xs text-slate-500">選ぶと、診断レポートにその地域の補助金・窓口・条例の論点が付きます。</p>
+              <select
+                value={s.regionPackId ?? ''}
+                onChange={(e) => s.setRegionPackId(e.target.value || undefined)}
+                className="mt-2 rounded border border-slate-300 px-3 py-1.5 text-sm"
+              >
+                <option value="">なし</option>
+                {listRegionPacks().map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              {s.regionPackId && (() => {
+                const pack = getRegionPack(s.regionPackId);
+                if (!pack) return null;
+                return (
+                  <ul className="mt-3 space-y-2">
+                    {pack.subsidies.map((x) => (
+                      <li key={x.title} className="text-sm">
+                        <b>{x.title}</b>
+                        <span className="hb-badge" style={{ marginLeft: 6 }}>要・窓口確認</span>
+                        <span className="mt-0.5 block text-xs text-slate-600" style={{ lineHeight: 1.8 }}>{x.summary}</span>
+                        {x.url && (
+                          <a href={x.url} target="_blank" rel="noreferrer" className="text-xs text-blue-700 underline">
+                            公式ページ
+                          </a>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
             </section>
 
             <section className="rounded-lg border border-slate-300 bg-white p-4">

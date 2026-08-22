@@ -252,14 +252,14 @@ function DiagnoseInner() {
           </button>
         </div>
         {geo && <p className="mt-2 text-xs text-slate-500">{geo}</p>}
-        <label className="mt-4 block text-sm text-slate-600">
-          地域パック(任意)
+        <label className="mt-5 block text-sm hb-muted">
+          地域パック（選ぶと、その地域の補助金・窓口・条例の論点がレポートに付きます）
           <select
             value={useEditor.getState().regionPackId ?? ''}
             onChange={(e) => useEditor.getState().setRegionPackId(e.target.value || undefined)}
             className="mt-1 block rounded-md border border-slate-300 px-3 py-2 text-sm"
           >
-            <option value="">なし</option>
+            <option value="">なし（全国共通の法律だけで診断）</option>
             {listRegionPacks().map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}

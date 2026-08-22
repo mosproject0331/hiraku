@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 810" width="1440" height="810" role="img" aria-label="改装中の土間で数人が作業している様子">
+<defs><filter id="wgr"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter></defs>
+<rect width="1440" height="810" fill="#1b1720"/>
+<!-- 奥の開口から差す光 -->
+<rect x="880" y="120" width="330" height="430" fill="#ff8c54" opacity=".22"/>
+<rect x="900" y="140" width="290" height="390" fill="#ffb083" opacity=".35"/>
+<g stroke="#7a3428" stroke-width="10" fill="none"><path d="M880 120h330v430H880z"/><path d="M1045 120v430M880 335h330"/></g>
+<!-- 梁 -->
+<rect x="0" y="86" width="1440" height="54" fill="#2b2029"/>
+<rect x="0" y="0" width="1440" height="88" fill="#141019"/>
+<g stroke="#3a2b30" stroke-width="14" fill="none"><path d="M250 140v420M700 140v420M1290 140v420"/></g>
+<!-- 土間の床 -->
+<rect x="0" y="556" width="1440" height="254" fill="#2a2028"/>
+<rect x="0" y="556" width="1440" height="12" fill="#7a3428" opacity=".5"/>
+<!-- 作業台 -->
+<rect x="420" y="486" width="420" height="26" fill="#7a3428"/>
+<rect x="446" y="512" width="20" height="66" fill="#5c3226"/>
+<rect x="794" y="512" width="20" height="66" fill="#5c3226"/>
+<!-- 道具 -->
+<g fill="#ff8c54"><rect x="470" y="462" width="96" height="16" rx="4"/><circle cx="640" cy="470" r="16"/><rect x="700" y="456" width="70" height="24" rx="5"/></g>
+<!-- 人物3人 -->
+<g fill="#0f0c12">
+  <circle cx="330" cy="404" r="42"/><path d="M330 452c-58 0-96 38-104 98l-12 106h232l-12-106c-8-60-46-98-104-98z"/>
+  <circle cx="620" cy="386" r="40"/><path d="M620 432c-56 0-92 36-100 94l-10 100h220l-10-100c-8-58-44-94-100-94z"/>
+  <circle cx="1010" cy="416" r="44"/><path d="M1010 466c-60 0-100 40-108 102l-12 108h240l-12-108c-8-62-48-102-108-102z"/>
+</g>
+<!-- 手元の朱 -->
+<g fill="#ff773c"><circle cx="392" cy="486" r="13"/><circle cx="560" cy="470" r="11"/><circle cx="946" cy="500" r="13"/></g>
+<rect width="1440" height="810" filter="url(#wgr)" opacity=".16" style="mix-blend-mode:multiply"/>
+</svg>

@@ -83,3 +83,24 @@ describe('現況調査報告書', async () => {
     for (const old of ['#9ca3af', '#d97706', '#16a34a']) expect(html).not.toContain(old);
   });
 });
+
+describe('地域情報セクション', async () => {
+  const { renderDiagnosisReport: render } = await import('../src/index');
+  const { runDiagnosis: run } = await import('@hiraku/rules');
+  const base: DiagnosisInput = {
+    youtoChiiki: 'unknown', kuikiKubun: 'chosei', bokaChiiki: 'unknown',
+    setsudo: { flag: 'unknown' }, kensazumi: 'unknown', currentUse: 'jutaku',
+    desiredUse: 'cafe', landCategory: 'unknown', haisui: 'unknown',
+  };
+  it('パック指定時に補助金・窓口・URLが出る', () => {
+    const html = render(base, run(base), 'sanda');
+    expect(html).toContain('兵庫県三田市');
+    expect(html).toContain('空き家リフォーム補助事業');
+    expect(html).toContain('079-559-5118');
+    expect(html).toContain('city.sanda.lg.jp');
+    expect(html).toContain('要・窓口確認');
+  });
+  it('パック未指定なら出ない', () => {
+    expect(render(base, run(base))).not.toContain('地域情報:');
+  });
+});
