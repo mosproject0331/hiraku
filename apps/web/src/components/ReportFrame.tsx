@@ -6,7 +6,7 @@ export default function ReportFrame({ html, onBack }: { html: string; onBack?: (
   const ref = useRef<HTMLIFrameElement>(null);
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-2">
+      <div className="reportframe-bar flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-2">
         {onBack && (
           <button onClick={onBack} className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">
             入力に戻る

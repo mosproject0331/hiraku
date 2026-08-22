@@ -57,6 +57,9 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
 
   const [view, setView] = useState<{ x: number; y: number; w: number } | null>(null);
   const [pan, setPan] = useState<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
+  // 指でのピンチ拡大・二本指移動
+  const touches = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const gesture = useRef<{ dist: number; cx: number; cy: number; view: { x: number; y: number; w: number } } | null>(null);
 
   // 初回と、モデルが差し替わったときだけ全体表示に合わせる
   const fitKey = level.nodes.length + '|' + (level.backdrop?.src ?? '') + '|' + model.id;
@@ -368,6 +371,33 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
   }
 
   function onPointerMove(e: React.PointerEvent) {
+    // 二本指: ピンチで拡大縮小、同時に移動
+    if (e.pointerType === 'touch' && touches.current.has(e.pointerId)) {
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const g = gesture.current;
+      if (touches.current.size === 2 && g) {
+        const svg = svgRef.current;
+        if (!svg) return;
+        const [a, b] = [...touches.current.values()];
+        const dist = Math.hypot(a!.x - b!.x, a!.y - b!.y) || 1;
+        const cx = (a!.x + b!.x) / 2;
+        const cy = (a!.y + b!.y) / 2;
+        const rect = svg.getBoundingClientRect();
+        const scale0 = g.view.w / rect.width;
+        // 指の中点が指していた図面上の点を固定したまま倍率を変える
+        const anchorX = g.view.x + (g.cx - rect.left) * scale0;
+        const anchorY = g.view.y + (g.cy - rect.top) * scale0;
+        const nw = Math.min(Math.max(g.view.w * (g.dist / dist), 1200), 400000);
+        const scale1 = nw / rect.width;
+        setView({
+          x: anchorX - (cx - rect.left) * scale1,
+          y: anchorY - (cy - rect.top) * scale1,
+          w: nw,
+        });
+        return;
+      }
+      return;
+    }
     if (pan && view) {
       const svg = svgRef.current;
       const scale = svg ? view.w / svg.getBoundingClientRect().width : 1;
@@ -404,7 +434,11 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
     );
   }
 
-  function onPointerUp() {
+  function onPointerUp(e?: React.PointerEvent) {
+    if (e?.pointerType === 'touch') {
+      touches.current.delete(e.pointerId);
+      if (touches.current.size < 2) gesture.current = null;
+    }
     if (pan) {
       setPan(null);
       return;
@@ -469,11 +503,33 @@ export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => vo
         setView({ x: p.x - (p.x - view.x) * r, y: p.y - (p.y - view.y) * r, w: nw });
       }}
       onPointerDown={(e) => {
+        if (e.pointerType === 'touch') {
+          touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          // 一本指: 選択ツールのときは図面を動かす（描画中は邪魔しない）
+          if (touches.current.size === 1 && tool === 'select' && view) {
+            setPan({ sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y });
+          }
+          if (touches.current.size === 2 && view) {
+            setPan(null);
+            const [a, b] = [...touches.current.values()];
+            gesture.current = {
+              dist: Math.hypot(a!.x - b!.x, a!.y - b!.y) || 1,
+              cx: (a!.x + b!.x) / 2,
+              cy: (a!.y + b!.y) / 2,
+              view: { ...view },
+            };
+          }
+          return;
+        }
         if (e.button !== 1 && !(e.button === 0 && e.altKey)) return;
         e.preventDefault();
         if (!view) return;
         setPan({ sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y });
         (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+      }}
+      onPointerCancel={(e) => {
+        touches.current.delete(e.pointerId);
+        if (touches.current.size < 2) gesture.current = null;
       }}
     >
       {/* 下絵（動画のコマ・間取り図の写真） */}

@@ -208,3 +208,86 @@ body{
 .editorstart-opt b{font-size:14.5px;font-weight:600}
 .editorstart-opt span{font-size:12.5px;line-height:1.75;color:var(--fg-2);flex:1}
 .editorstart-note{margin-top:18px;font-size:11.5px;color:var(--fg-3);line-height:1.8}
+
+/* ── 間取りエディタ: スマホ最適化 ───────────────── */
+.editor-shell{display:grid;grid-template-columns:1fr 360px;min-height:0;flex:1}
+.editor-canvas{position:relative;min-height:0}
+.editor-side{
+  display:flex;flex-direction:column;overflow-y:auto;min-height:0;
+  border-left:1px solid var(--border-soft);background:var(--card);
+}
+.editor-tools{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px clamp(10px,2vw,16px);
+  border-bottom:1px solid var(--border-soft);
+  background:rgba(255,255,255,.86);backdrop-filter:blur(14px) saturate(1.3);
+}
+.editor-sheet-toggle{display:none}
+
+@media(max-width:860px){
+  /* 図面を主役に。道具は1行スクロール、パネルは下から出す */
+  .editor-shell{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  .editor-canvas{min-height:46vh}
+  .editor-side{
+    border-left:none;border-top:1px solid var(--border);
+    max-height:44vh;
+    box-shadow:0 -16px 32px -28px rgba(15,15,15,.5);
+  }
+  .editor-side[data-open="false"]{max-height:0;overflow:hidden;border-top-width:0}
+
+  .editor-tools{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:7px 10px;gap:6px}
+  .editor-tools::-webkit-scrollbar{display:none}
+  .editor-tools > *{flex:none}
+  .editor-tools .hb-btn{padding:9px 13px;font-size:13px}
+  .editor-tools .hb-seg button{padding:9px 13px;font-size:13px}
+  .desktop-only{display:none !important}
+
+  .editor-sheet-toggle{
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    width:100%;padding:11px;border:none;border-top:1px solid var(--border);
+    background:var(--sunken);color:var(--fg-2);font-size:13px;font-weight:600;
+  }
+  .editor-sheet-toggle:active{background:var(--border-soft)}
+
+  /* 指で押しやすい大きさに */
+  .editor-side .hb-btn{min-height:38px}
+  .editor-side input[type="number"],
+  .editor-side input[type="text"],
+  .editor-side select,
+  .editor-side textarea{min-height:38px;font-size:16px} /* 16px未満だとiOSが勝手に拡大する */
+  .editor-side input[type="range"]{height:30px}
+}
+
+/* スマホでは3Dプレビューを小さく */
+@media(max-width:860px){ .editor-3d{height:120px !important} }
+
+/* ── スマホ全般の底上げ ─────────────────────────── */
+@media(max-width:860px){
+  /* iOSは16px未満の入力欄をタップすると勝手に拡大する。これを防ぐ */
+  input, select, textarea{ font-size:16px !important }
+
+  /* 指で押せる大きさを確保（Appleの目安44px、最低でも40px） */
+  button, a.hb-btn, .hb-btn, input[type="button"], input[type="submit"]{ min-height:40px }
+  .appnav-item{ min-height:36px; display:inline-flex; align-items:center }
+  input[type="checkbox"], input[type="radio"]{ width:20px; height:20px }
+
+  /* 横に長い表・コード・図はその中だけで横スクロールさせる */
+  table{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch }
+  pre, .cmd{ overflow-x:auto }
+
+  /* 本文の読みやすさ */
+  body{ font-size:15.5px }
+}
+
+/* 印刷レポートを表示するiframeもスマホで詰まらないように */
+@media(max-width:860px){
+  .reportframe-bar{ flex-wrap:wrap; gap:8px }
+}
+
+/* 端末の切り欠き（ノッチ）を避ける */
+@supports(padding:max(0px)){
+  @media(max-width:860px){
+    .appnav{ padding-left:max(10px, env(safe-area-inset-left)); padding-right:max(10px, env(safe-area-inset-right)) }
+    .quickbar-in{ padding-left:max(14px, env(safe-area-inset-left)); padding-right:max(14px, env(safe-area-inset-right)) }
+  }
+}

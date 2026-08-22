@@ -47,6 +47,7 @@ export default function EditorPage() {
   const damagePins = useEditor((s) => s.damagePins);
   const future = useEditor((s) => s.future);
   const { setTool, setOpeningKind, loadModel, mutate, undo, redo, select } = useEditor.getState();
+  const [sheetOpen, setSheetOpen] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
   const fitRef = useRef<(() => void) | null>(null);
   const onFitReady = useCallback((fit: () => void) => {
@@ -82,7 +83,7 @@ export default function EditorPage() {
 
   return (
     <div className="fullpane" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
-      <header className="hb-bar">
+      <header className="editor-tools">
                 <div className="hb-seg">
           {TOOLS.map((t) => (
             <button key={t.id} onClick={() => setTool(t.id)} data-on={tool === t.id}>
@@ -180,19 +181,26 @@ export default function EditorPage() {
           モジュール推定
         </button>
         
-        <span className="ml-auto hb-faint" style={{ fontSize: 12 }}>
+        <span className="ml-auto hb-faint desktop-only" style={{ fontSize: 12 }}>
           ホイールで拡大縮小 ／ Option+ドラッグで移動 ／ モジュール {model.moduleMm}mm
         </span>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[1fr_360px]">
-        <div className="relative min-h-0">
+      <div className="editor-shell">
+        <div className="editor-canvas">
           <PlanCanvas onFitReady={onFitReady} />
           {level.walls.length === 0 && !level.backdrop && <EditorStart />}
         </div>
-        <aside className="flex min-h-0 flex-col overflow-y-auto"
-          style={{ borderLeft: '1px solid var(--border-soft)', background: 'var(--card)' }}>
-          <div className="h-56 shrink-0" style={{ borderBottom: '1px solid var(--border-soft)' }}>
+        <button
+          type="button"
+          className="editor-sheet-toggle"
+          onClick={() => setSheetOpen((v) => !v)}
+          aria-expanded={sheetOpen}
+        >
+          {sheetOpen ? '▼ 図面を広く使う' : '▲ 道具パネルを開く'}
+        </button>
+        <aside className="editor-side" data-open={sheetOpen}>
+          <div className="editor-3d h-56 shrink-0" style={{ borderBottom: '1px solid var(--border-soft)' }}>
             <Preview3D />
           </div>
 
