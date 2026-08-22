@@ -155,30 +155,29 @@ export function solarPosition(when: Date, lat: number, lon: number): SolarPositi
   return { altitudeDeg: altitude, azimuthDeg: azimuth };
 }
 
-/** その日、太陽がいちばん高くなる時刻（地方時のずれを含む） */
+/**
+ * その日、太陽がいちばん高くなる時刻。
+ *
+ * 「その日」は端末の時間帯ではなく、経度から決める。
+ * 端末の時計がどこに合っていても、土地の側で同じ答えになる。
+ */
 export function solarNoon(when: Date, lat: number, lon: number): Date {
-  // 15分刻みで一番高いところを探し、そのまわりを1分刻みで詰める
-  const day = new Date(when);
-  day.setHours(0, 0, 0, 0);
-  let best = day;
+  const offsetMs = (lon / 15) * 3600000; // 経度から来る地方時のずれ
+  const localMs = when.getTime() + offsetMs;
+  const dayStart = Math.floor(localMs / 86400000) * 86400000;
+  // 地方時の正午。均時差のぶん（最大±16分ほど）ずれるので、そのまわりを詰める
+  const guess = dayStart + 12 * 3600000 - offsetMs;
+  let best = guess;
   let bestAlt = -90;
-  for (let m = 0; m < 1440; m += 15) {
-    const t = new Date(day.getTime() + m * 60000);
-    const a = solarPosition(t, lat, lon).altitudeDeg;
+  for (let m = -90; m <= 90; m += 1) {
+    const t = guess + m * 60000;
+    const a = solarPosition(new Date(t), lat, lon).altitudeDeg;
     if (a > bestAlt) {
       bestAlt = a;
       best = t;
     }
   }
-  for (let m = -15; m <= 15; m++) {
-    const t = new Date(best.getTime() + m * 60000);
-    const a = solarPosition(t, lat, lon).altitudeDeg;
-    if (a > bestAlt) {
-      bestAlt = a;
-      best = t;
-    }
-  }
-  return best;
+  return new Date(best);
 }
 
 export interface SunTimes {
@@ -190,34 +189,32 @@ export interface SunTimes {
 /**
  * その日の日の出・南中・日の入り。
  * 光の話は季節でまるごと変わるので、時刻を決め打ちにしない。
+ *
+ * 南中から前後に地平線をまたぐところを探す。端末の時間帯には依存しない。
  */
 export function sunTimes(when: Date, lat: number, lon: number): SunTimes {
-  const day = new Date(when);
-  day.setHours(0, 0, 0, 0);
-  const alt = (m: number) => solarPosition(new Date(day.getTime() + m * 60000), lat, lon).altitudeDeg;
   const noon = solarNoon(when, lat, lon);
-  const noonM = Math.round((noon.getTime() - day.getTime()) / 60000);
+  const alt = (t: number) => solarPosition(new Date(t), lat, lon).altitudeDeg;
+  if (alt(noon.getTime()) <= 0) return { sunrise: null, noon, sunset: null };
 
-  /** from から step 方向へ、地平線をまたぐところを探す */
-  const cross = (from: number, step: number): Date | null => {
+  /** 南中から step 方向へ、地平線をまたぐ瞬間を探す */
+  const cross = (step: number): Date | null => {
+    const from = noon.getTime();
     let prev = alt(from);
-    for (let m = from + step; m >= 0 && m <= 1440; m += step) {
-      const cur = alt(m);
+    for (let m = step; Math.abs(m) <= 14 * 60; m += step) {
+      const t = from + m * 60000;
+      const cur = alt(t);
       if (prev > 0 && cur <= 0) {
         // 1分刻みで詰める
-        for (let k = m - step; step > 0 ? k <= m : k >= m; k += step > 0 ? 1 : -1) {
-          if (alt(k) <= 0) return new Date(day.getTime() + k * 60000);
+        for (let k = m - step; Math.abs(k - m) <= Math.abs(step); k += step > 0 ? 1 : -1) {
+          if (alt(from + k * 60000) <= 0) return new Date(from + k * 60000);
         }
-        return new Date(day.getTime() + m * 60000);
+        return new Date(t);
       }
       prev = cur;
     }
-    return null;
+    return null; // 白夜・極夜
   };
 
-  return {
-    sunrise: alt(noonM) > 0 ? cross(noonM, -5) : null,
-    noon,
-    sunset: alt(noonM) > 0 ? cross(noonM, 5) : null,
-  };
+  return { sunrise: cross(-5), noon, sunset: cross(5) };
 }

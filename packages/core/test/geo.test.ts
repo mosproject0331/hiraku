@@ -87,6 +87,22 @@ describe('太陽の位置', () => {
 });
 
 describe('日の出と日の入り', () => {
+  it('端末の時間帯に左右されない', () => {
+    // 同じ瞬間を別の書き方で渡しても、同じ答えになる
+    const a = sunTimes(new Date('2026-09-23T00:00:00Z'), TOKYO.lat, TOKYO.lon);
+    const b = sunTimes(new Date('2026-09-23T09:00:00Z'), TOKYO.lat, TOKYO.lon);
+    expect(a.noon.getTime()).toBe(b.noon.getTime());
+    expect(a.sunrise!.getTime()).toBe(b.sunrise!.getTime());
+  });
+
+  it('南中は、その土地の正午に近い（東京はUTC+9)', () => {
+    const t = sunTimes(new Date('2026-09-23T03:00:00Z'), TOKYO.lat, TOKYO.lon);
+    // 東京の南中は UTC で 3時ごろ（＝JST 12時ごろ）
+    const utcHour = t.noon.getUTCHours() + t.noon.getUTCMinutes() / 60;
+    expect(utcHour).toBeGreaterThan(2.4);
+    expect(utcHour).toBeLessThan(3.4);
+  });
+
   it('夏は日が長く、冬は短い', () => {
     const s = sunTimes(new Date('2026-06-21T03:00:00Z'), TOKYO.lat, TOKYO.lon);
     const w = sunTimes(new Date('2026-12-21T03:00:00Z'), TOKYO.lat, TOKYO.lon);
