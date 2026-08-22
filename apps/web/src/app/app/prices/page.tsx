@@ -34,6 +34,7 @@ export default function PricesPage() {
 
   const items = useMemo(() => applyPriceBook(priceBook), [priceBook]);
   const verified = items.filter((w) => w.materialUnitPrice.verified);
+  const mineCount = Object.keys(priceBook).length;
 
   /** いまの案で、どの項目がどれだけ金額を動かすか */
   const impact = useMemo(() => {
@@ -120,11 +121,12 @@ export default function PricesPage() {
         <p className="intake-kicker">単価帳</p>
         <h1 className="intake-title">{jp('その数字は、どこから来ましたか。')}</h1>
         <p className="intake-sub">
-          {jp('全国一律の正しい単価はありません。ホームセンターの値段でさえ店舗で違います。だから初期値はすべて「よく見かける幅」でしかなく、未検証として扱います。あなたの数字が入って、はじめて確かな数字になります。')}
+          {jp('全国一律の正しい単価はありません。同じ石膏ボードでも、ホームセンターは482円/㎡、積算資料の公表価格は1,177円/㎡です。よく出る項目は実売を調べて、店名と時点を添えてあります。それでもあなたの現場の数字にはかないません。上書きしてください。')}
         </p>
         <div className="intake-bar"><span style={{ width: `${pct}%` }} /></div>
         <p className="prices-count">
-          <b className="num">{verified.length}</b> / {WORK_ITEMS.length} 件が自分の数字
+          <b className="num">{verified.length}</b> / {WORK_ITEMS.length} 件は出どころが分かる数字
+          {mineCount > 0 && <>（うち <b className="num">{mineCount}</b> 件はあなたが入れたもの）</>}
           {proposals.length > 0 && <> ／ いまの案で使うのは <b className="num">{impact.size}</b> 件</>}
         </p>
       </header>
@@ -173,7 +175,14 @@ export default function PricesPage() {
 
       <div className="prices-list">
         {shown.map((w) => (
-          <Row key={w.id} w={w} inPlan={impact.has(w.id)} onSet={set} onClear={clearOne} />
+          <Row
+            key={w.id}
+            w={w}
+            inPlan={impact.has(w.id)}
+            mine={Boolean(priceBook[w.id])}
+            onSet={set}
+            onClear={clearOne}
+          />
         ))}
       </div>
 
@@ -185,10 +194,12 @@ export default function PricesPage() {
 }
 
 function Row({
-  w, inPlan, onSet, onClear,
+  w, inPlan, mine, onSet, onClear,
 }: {
   w: WorkItem;
   inPlan: boolean;
+  /** 使う人が自分で入れた数字か（調べただけの数字と区別する） */
+  mine: boolean;
   onSet: (id: string, patch: { low?: number; high?: number; source?: string; asOf?: string }) => void;
   onClear: (id: string) => void;
 }) {
@@ -227,7 +238,7 @@ function Row({
 
       <div className="price-meta">
         <span className={p.verified ? 'price-src mine' : 'price-src'}>
-          {p.verified ? '自分の数字' : '未検証'} — {p.source}
+          {mine ? '自分の数字' : p.verified ? '調べた数字' : '未検証'} — {p.source}
           {p.asOf && <> ／ {p.asOf}</>}
         </span>
         <button className="price-more" onClick={() => setOpen((v) => !v)}>
