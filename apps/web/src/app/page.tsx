@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { asset } from '@/lib/ai';
 import './landing.css';
 
 const USES = [
@@ -35,7 +36,10 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="landing">
+    <div
+      className="landing"
+      style={{ ['--tex-canvas' as string]: `url("${asset('/img/tex-canvas.png')}")` } as React.CSSProperties}
+    >
       <header>
         <div className="wrap">
           <div className="bar">
@@ -191,7 +195,7 @@ export default function Landing() {
 
             {/*B: 実写*/}
             <div className="ph">
-              <img src="/img/scene-trace.svg" alt="古民家の座敷でスマホをかざし、室内を記録している様子（イラスト）" loading="lazy" />
+              <img src={asset("/img/scene-trace.svg")} alt="古民家の座敷でスマホをかざし、室内を記録している様子（イラスト）" loading="lazy" />
             </div>
 
             {/*C: オレンジ帯*/}
@@ -415,7 +419,7 @@ export default function Landing() {
       <section className="dotted" style={{borderRadius:'0',marginTop:'clamp(24px,4vw,48px)'}}>
         <div className="wrap">
           <div className="htband rv" style={{marginBottom:'clamp(48px,6vw,72px)'}}>
-            <img src="/img/scene-halftone.png" alt="改装中の土間で作業する人たち（網点のイラスト）" loading="lazy" />
+            <img src={asset("/img/scene-halftone.png")} alt="改装中の土間で作業する人たち（網点のイラスト）" loading="lazy" />
             <div className="card">
               <h3>調べる時間を、つくる時間へ</h3>
               <p>制度を調べるのに数週間かけていた工程を、一時間に縮めます。浮いた時間は、どんな場所にするかを考えることに使えます。</p>
@@ -437,7 +441,7 @@ export default function Landing() {
       <section style={{paddingTop:'0'}}>
         <div className="wrap rv">
           <div className="editorial">
-            <div className="bgph ph"><img src="/img/scene-work.svg" alt="改装中の土間で人が集まり作業している様子（イラスト）" loading="lazy" /></div>
+            <div className="bgph ph"><img src={asset("/img/scene-work.svg")} alt="改装中の土間で人が集まり作業している様子（イラスト）" loading="lazy" /></div>
             <div className="veil"></div>
             <div className="ed-in">
               <span className="tag" style={{background:'rgba(255,255,255,.14)',borderColor:'rgba(255,255,255,.22)',color:'#fff'}}>なぜ作っているか</span>

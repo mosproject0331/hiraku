@@ -12,6 +12,7 @@ import {
 } from '@hiraku/core';
 import { DIY_CLASS_LABEL, estimatePlan, type PlanEstimate } from '@hiraku/estimate';
 import type { HearingPlan } from '@hiraku/llm';
+import { askHearing } from '@/lib/ai';
 import { useEditor } from '@/lib/store';
 
 function yen(n: number): string {
@@ -145,13 +146,7 @@ export default function PlanPage() {
     setMessages((ms) => [...ms, { role: 'user', text }]);
     setBusy(true);
     try {
-      const res = await fetch('/api/hearing', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ modelJson: serialize(model), userMessages }),
-      });
-      const turn = (await res.json()) as { reply?: string; plans?: HearingPlan[]; error?: string };
-      if (turn.error) throw new Error(turn.error);
+      const turn = await askHearing(serialize(model), userMessages);
       if (turn.reply) setMessages((ms) => [...ms, { role: 'assistant', text: turn.reply! }]);
       if (turn.plans) {
         setPlans(turn.plans);

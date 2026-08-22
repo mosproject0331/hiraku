@@ -1,10 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { isStatic } from '@/lib/ai';
 
 export default function LlmStatus() {
   const [s, setS] = useState<{ llmMode: string; note: string } | null>(null);
   useEffect(() => {
+    if (isStatic) {
+      setS({ llmMode: 'mock', note: 'この公開版はモックで動いています。ネットに繋がっていなくても全機能が使えます。' });
+      return;
+    }
     fetch('/api/status')
       .then((r) => r.json())
       .then(setS)

@@ -17,6 +17,7 @@ import { estimatePlan } from '@hiraku/estimate';
 import { nextHints } from '@hiraku/knowledge';
 import { getRegionPack, listRegionPacks } from '@hiraku/regionpack';
 import ReportFrame from '@/components/ReportFrame';
+import { askQuestion } from '@/lib/ai';
 import { useEditor } from '@/lib/store';
 
 type Tab = 'overview' | 'diagnosis' | 'survey' | 'plans';
@@ -79,12 +80,7 @@ export default function ProjectPage() {
         measurements: s.measurements.length,
         pins: s.damagePins.length,
       });
-      const res = await fetch('/api/qa', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ question: q, context }),
-      });
-      const { answer } = (await res.json()) as { answer: string };
+      const answer = await askQuestion(q, context);
       setQa((x) => [...x, { q, a: answer }]);
     } finally {
       setBusy(false);

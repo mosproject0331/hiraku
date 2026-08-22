@@ -72,3 +72,12 @@ export function mockHearingTurn(modelJson: string, userMessages: string[]): Hear
     plans: mockHearingPlans(model),
   };
 }
+
+/** レポートQ&Aのモック応答（サーバー無しでも動く） */
+export function mockReportQA(question: string): string {
+  return (
+    'この画面の内容から言える範囲でお答えします。' +
+    '個別の法解釈や安全性の断定はこのツールでは判断できないため、レポートの「確認先」に相談してください。' +
+    '(モック応答: ご質問「' + question.slice(0, 60) + '」)'
+  );
+}

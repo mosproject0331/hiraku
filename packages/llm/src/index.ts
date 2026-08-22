@@ -1,9 +1,9 @@
 import { deserialize, validateOps, type RenovationOp } from '@hiraku/core';
-import { mockHearingPlans, mockHearingTurn, type HearingPlan, type HearingTurn } from './mock';
+import { mockHearingPlans, mockHearingTurn, mockReportQA, type HearingPlan, type HearingTurn } from './mock';
 import { HEARING_SYSTEM } from './prompts/hearing';
 import { EXPLAINER_SYSTEM } from './prompts/explainer';
 
-export { mockHearingPlans, mockHearingTurn, HEARING_SYSTEM, EXPLAINER_SYSTEM };
+export { mockHearingPlans, mockHearingTurn, mockReportQA, HEARING_SYSTEM, EXPLAINER_SYSTEM };
 export type { HearingPlan, HearingTurn };
 
 export type LlmMode = 'mock' | 'live';
@@ -86,13 +86,7 @@ async function liveHearing(modelJson: string, userMessages: string[]): Promise<H
 
 /** レポートQ&A(M7)。mockは定型応答 */
 export async function reportQA(question: string, context: string): Promise<string> {
-  if (currentMode() === 'mock') {
-    return (
-      'この画面の内容から言える範囲でお答えします。' +
-      '個別の法解釈や安全性の断定はこのツールでは判断できないため、レポートの「確認先」に相談してください。' +
-      '(モック応答: ご質問「' + question.slice(0, 60) + '」)'
-    );
-  }
+  if (currentMode() === 'mock') return mockReportQA(question);
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic();
   const res = await client.messages.create({
