@@ -91,6 +91,7 @@ export default function EditorPage() {
 
   return (
     <div className="fullpane" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
+      <h1 className="sr-only">間取りをつくる・測る</h1>
       <header className="editor-tools">
         <div className="hb-seg floors" role="group" aria-label="階">
           {model.levels.map((lv, i) => (
@@ -200,6 +201,7 @@ export default function EditorPage() {
           type="file"
           accept="application/json"
           className="hidden"
+          aria-label="間取りのJSONを読み込む"
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) void importJson(f);

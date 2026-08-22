@@ -84,6 +84,7 @@ export default function QuotePage() {
 
   return (
     <main className="qt">
+      <h1 className="sr-only">御見積書をつくる</h1>
       <header className="qt-bar">
         <div className="qt-tabs" role="tablist">
           <button role="tab" aria-selected={tab === 'edit'} className={'chip' + (tab === 'edit' ? ' on' : '')} onClick={() => setTab('edit')}>編集</button>

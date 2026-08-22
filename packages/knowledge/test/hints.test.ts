@@ -82,3 +82,22 @@ describe('ナレッジ層', () => {
     expect(a).toEqual(b);
   });
 });
+
+describe('27パターンの網羅', () => {
+  it('27すべてのパターンが、どこかの問いの出典になっている', () => {
+    const seen = new Set<number>();
+    for (const h of HINTS) {
+      for (const m of h.source.matchAll(/pattern-(\d+)/g)) seen.add(Number(m[1]));
+    }
+    const missing = Array.from({ length: 27 }, (_, i) => i + 1).filter((n) => !seen.has(n));
+    expect(missing, `参照されていないパターン: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('パターンの名前も番号も、利用者には出さない', () => {
+    for (const h of HINTS) {
+      expect(h.text).not.toContain('パターン');
+      expect(h.text).not.toMatch(/pattern/i);
+      expect(h.text).not.toMatch(/第?\d+番/);
+    }
+  });
+});
