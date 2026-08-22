@@ -80,10 +80,9 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
+    <div className="fullpane" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
       <header className="hb-bar">
-        <Link href="/app" className="hb-logo" style={{ marginRight: 4 }}><span className="dot" />HIRAKU</Link>
-        <div className="hb-seg">
+                <div className="hb-seg">
           {TOOLS.map((t) => (
             <button key={t.id} onClick={() => setTool(t.id)} data-on={tool === t.id}>
               {t.label}
@@ -179,7 +178,7 @@ export default function EditorPage() {
         >
           モジュール推定
         </button>
-        <Link href="/app/plan" className="hb-btn hb-cta">改修の相談へ</Link>
+        
         <span className="ml-auto hb-faint" style={{ fontSize: 12 }}>
           ホイールで拡大縮小 ／ Option+ドラッグで移動 ／ モジュール {model.moduleMm}mm
         </span>

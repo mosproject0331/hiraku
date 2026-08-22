@@ -120,10 +120,9 @@ export default function ProjectPage() {
   ];
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100">
+    <div className="fullpane" style={{ background: 'var(--bg)' }}>
       <header className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-2">
-        <Link href="/app" className="text-sm font-semibold text-slate-500 hover:text-slate-800">HIRAKU</Link>
-        <input
+                <input
           value={s.projectName}
           onChange={(e) => s.setProjectName(e.target.value)}
           placeholder="物件・プロジェクト名"

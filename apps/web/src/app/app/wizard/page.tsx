@@ -27,8 +27,7 @@ export default function WizardPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <a href="/app" className="text-sm text-slate-500 hover:text-slate-800">← HIRAKU</a>
-      <h1 className="mt-2 text-2xl font-bold">モードA: これから物件を探す</h1>
+            <h1 className="mt-2 text-2xl font-bold">モードA: これから物件を探す</h1>
       <p className="mt-1 text-sm text-slate-600">やりたいことを選ぶと、探すべき物件の条件と内見チェックリストをつくります。</p>
 
       <h2 className="mt-6 text-sm font-semibold text-slate-500">1. やりたい用途</h2>

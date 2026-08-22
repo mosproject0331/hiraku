@@ -36,18 +36,14 @@ export default function PricesPage() {
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      <div className="hb-bar">
-        <Link href="/app" className="hb-logo"><span className="dot" />HIRAKU</Link>
-        <span className="hb-muted" style={{ fontSize: 14 }}>単価データ</span>
-        <span className="hb-badge" style={{ marginLeft: 'auto' }}>
-          実データ {verifiedCount} / {WORK_ITEMS.length} 件
-        </span>
-      </div>
 
       <main style={{ maxWidth: 980, margin: '0 auto', padding: 'clamp(28px,4vw,44px) clamp(20px,4vw,32px) 80px' }}>
-        <h1 style={{ fontSize: 'clamp(1.5rem,3vw,1.9rem)', fontWeight: 600, letterSpacing: '-.02em' }}>
-          自分の単価に入れ替える
-        </h1>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
+          <h1 style={{ fontSize: 'clamp(1.5rem,3vw,1.9rem)', fontWeight: 600, letterSpacing: '-.02em' }}>
+            自分の単価に入れ替える
+          </h1>
+          <span className="hb-badge">実データ {verifiedCount} / {WORK_ITEMS.length} 件</span>
+        </div>
         <p className="hb-muted" style={{ marginTop: 12, fontSize: 14.5, lineHeight: 1.85, maxWidth: '40em' }}>
           初期値はすべて「参考値・要検証」の仮の数字です。ご自身の積算シートや物価資料の数字を入れると、
           その項目は「実データ」として扱われ、見積の注記も変わります。

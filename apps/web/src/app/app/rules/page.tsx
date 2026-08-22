@@ -38,17 +38,17 @@ export default function RulesReviewPage() {
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      <div className="hb-bar no-print">
-        <Link href="/app" className="hb-logo"><span className="dot" />HIRAKU</Link>
-        <span className="hb-muted" style={{ fontSize: 14 }}>ルール レビューシート</span>
-        <span className="hb-badge" style={{ marginLeft: 'auto' }}>{checked} / {RULES.length} 確認済み</span>
-        <button onClick={() => window.print()} className="hb-btn hb-dark">印刷 / PDF保存</button>
-      </div>
 
       <main style={{ maxWidth: 900, margin: '0 auto', padding: 'clamp(24px,4vw,40px) clamp(20px,4vw,32px) 80px' }}>
-        <h1 style={{ fontSize: 'clamp(1.4rem,3vw,1.8rem)', fontWeight: 600, letterSpacing: '-.02em' }}>
-          法規制ルール {RULES.length}本の文面レビュー
-        </h1>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
+          <h1 style={{ fontSize: 'clamp(1.4rem,3vw,1.8rem)', fontWeight: 600, letterSpacing: '-.02em' }}>
+            法規制ルール {RULES.length}本の文面レビュー
+          </h1>
+          <span className="hb-badge no-print">{checked} / {RULES.length} 確認済み</span>
+          <button onClick={() => window.print()} className="hb-btn hb-dark no-print" style={{ marginLeft: 'auto' }}>
+            印刷 / PDF保存
+          </button>
+        </div>
         <p className="hb-muted" style={{ marginTop: 12, fontSize: 14, lineHeight: 1.85, maxWidth: '42em' }}>
           利用者に出る文面をそのまま並べています。実務目線で「言い過ぎ」「足りない」「窓口が違う」を見つけたら、
           その項目のIDを控えて <code>packages/rules/src/rules/all.ts</code> を直してください。

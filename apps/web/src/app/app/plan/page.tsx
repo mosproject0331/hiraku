@@ -161,8 +161,7 @@ export default function PlanPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
-      <Link href="/app" className="text-sm text-slate-500 hover:text-slate-800">← HIRAKU</Link>
-      <h1 className="mt-2 text-2xl font-bold">改修の相談</h1>
+            <h1 className="mt-2 text-2xl font-bold">改修の相談</h1>
       <p className="mt-1 text-sm text-slate-600">
         いまエディタにある間取り({model.levels[0]!.rooms.length}部屋)をもとに、要望を聞いて3案つくります。
         金額はすべて材料費ベースの参考レンジです。

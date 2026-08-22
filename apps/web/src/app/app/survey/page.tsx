@@ -21,11 +21,9 @@ export default function SurveyPage() {
   );
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="fullpane">
       <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-2">
-        <Link href="/app/editor" className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">
-          ← エディタへ戻る
-        </Link>
+        <Link href="/app/editor" className="hb-btn hb-outline">間取りを直す</Link>
         <input
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
