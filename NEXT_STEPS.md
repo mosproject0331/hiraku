@@ -1,6 +1,8 @@
 # 次にやること(優先順)
 
-1. [human] ANTHROPIC_API_KEY 設定 → `LLM_MODE=live pnpm dev` で hearing/explainer の実挙動確認
+1. [human] **写真を自前のものに差し替える**（`docs/CREDITS.md` の撮影リスト参照）。現在はCC BY-SA 4.0の暫定素材で、クレジット表示が必要
+2. [human] 動画アップロード→間取り生成のWeb経路。モデル選定とライセンス確認が前提（ランディングの主張と実装が唯一ずれている箇所）
+3. [human] ANTHROPIC_API_KEY 設定 → `LLM_MODE=live pnpm dev` で hearing/explainer の実挙動確認
 2. [human] docs/model-licenses.md のライセンス確認欄を埋める(商用利用可否の確定は必須)
 3. [human] Modalアカウント作成 → workers/recon/modal_app.py のデプロイと実動画での再構成テスト
 4. [human] 単価DBへの実データ投入(自前積算シート+物価資料) → work-items.ts を verified:true 化

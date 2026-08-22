@@ -70,19 +70,12 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
-      <header className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
-        <Link href="/" className="mr-2 text-sm font-semibold text-slate-500 hover:text-slate-800">HIRAKU</Link>
-        <div className="flex overflow-hidden rounded-md border border-slate-300">
+    <div className="flex h-screen flex-col" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
+      <header className="hb-bar">
+        <Link href="/app" className="hb-logo" style={{ marginRight: 4 }}><span className="dot" />HIRAKU</Link>
+        <div className="hb-seg">
           {TOOLS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTool(t.id)}
-              className={
-                'px-3 py-1.5 text-sm ' +
-                (tool === t.id ? 'bg-slate-800 text-white' : 'bg-white hover:bg-slate-50')
-              }
-            >
+            <button key={t.id} onClick={() => setTool(t.id)} data-on={tool === t.id}>
               {t.label}
             </button>
           ))}
@@ -91,7 +84,7 @@ export default function EditorPage() {
           <select
             value={openingKind}
             onChange={(e) => setOpeningKind(e.target.value as Opening['kind'])}
-            className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+            className="hb-field"
           >
             {(Object.keys(OPENING_LABEL) as Opening['kind'][]).map((k) => (
               <option key={k} value={k}>{OPENING_LABEL[k]}</option>
@@ -102,7 +95,7 @@ export default function EditorPage() {
           <select
             value={useEditor.getState().pinCategory}
             onChange={(e) => useEditor.getState().setPinCategory(e.target.value as (typeof PIN_CATEGORIES)[number])}
-            className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+            className="hb-field"
           >
             {PIN_CATEGORIES.map((c) => (
               <option key={c} value={c}>{c}</option>
@@ -110,19 +103,19 @@ export default function EditorPage() {
           </select>
         )}
         {tool === 'wall' && (
-          <span className="text-xs text-slate-500">クリックで頂点を置き、続けてクリックで壁がつながります(Escで終了)</span>
+          <span className="hb-faint" style={{ fontSize: 12 }}>クリックで頂点を置き、続けてクリックで壁がつながります(Escで終了)</span>
         )}
         <div className="mx-2 h-5 w-px bg-slate-200" />
-        <button onClick={undo} disabled={!history.length} className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm disabled:opacity-40">元に戻す</button>
-        <button onClick={redo} disabled={!future.length} className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm disabled:opacity-40">やり直す</button>
+        <button onClick={undo} disabled={!history.length} className="hb-btn hb-outline">元に戻す</button>
+        <button onClick={redo} disabled={!future.length} className="hb-btn hb-outline">やり直す</button>
         <div className="mx-2 h-5 w-px bg-slate-200" />
         <button
           onClick={() => loadModel(deserialize(JSON.stringify(sampleRaw)))}
-          className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm hover:bg-slate-50"
+          className="hb-btn hb-outline"
         >
           サンプルを読み込む
         </button>
-        <button onClick={() => fileRef.current?.click()} className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm hover:bg-slate-50">JSON読込</button>
+        <button onClick={() => fileRef.current?.click()} className="hb-btn hb-outline">JSON読込</button>
         <input
           ref={fileRef}
           type="file"
@@ -134,7 +127,7 @@ export default function EditorPage() {
             e.target.value = '';
           }}
         />
-        <button onClick={exportJson} className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm hover:bg-slate-50">JSON書き出し</button>
+        <button onClick={exportJson} className="hb-btn hb-outline">JSON書き出し</button>
         <div className="mx-2 h-5 w-px bg-slate-200" />
         <button
           onClick={() => {
@@ -143,7 +136,7 @@ export default function EditorPage() {
               m.levels = snapped.levels;
             });
           }}
-          className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm hover:bg-slate-50"
+          className="hb-btn hb-outline"
         >
           グリッド吸着
         </button>
@@ -155,26 +148,27 @@ export default function EditorPage() {
             });
             alert('壁長の分布から推定したモジュール: ' + m + 'mm');
           }}
-          className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm hover:bg-slate-50"
+          className="hb-btn hb-outline"
         >
           モジュール推定
         </button>
-        <Link href="/plan" className="rounded bg-emerald-700 px-2.5 py-1.5 text-sm text-white hover:bg-emerald-600">改修の相談へ</Link>
-        <span className="ml-auto text-xs text-slate-500">モジュール {model.moduleMm}mm</span>
+        <Link href="/app/plan" className="hb-btn hb-cta">改修の相談へ</Link>
+        <span className="ml-auto hb-faint" style={{ fontSize: 12 }}>モジュール {model.moduleMm}mm</span>
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-[1fr_360px]">
         <div className="min-h-0">
           <PlanCanvas />
         </div>
-        <aside className="flex min-h-0 flex-col overflow-y-auto border-l border-slate-200 bg-white">
-          <div className="h-56 shrink-0 border-b border-slate-200">
+        <aside className="flex min-h-0 flex-col overflow-y-auto"
+          style={{ borderLeft: '1px solid var(--border-soft)', background: 'var(--card)' }}>
+          <div className="h-56 shrink-0" style={{ borderBottom: '1px solid var(--border-soft)' }}>
             <Preview3D />
           </div>
 
           {/* 凡例 */}
-          <div className="border-b border-slate-200 px-3 py-2">
-            <div className="mb-1 text-xs font-semibold text-slate-500">確度の凡例</div>
+          <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border-soft)' }}>
+            <div className="mb-1 text-xs font-semibold hb-muted">確度の凡例</div>
             <div className="flex flex-wrap gap-3 text-xs">
               {(['estimated', 'hypothesis', 'measured'] as const).map((c) => (
                 <span key={c} className="inline-flex items-center gap-1">
@@ -190,9 +184,9 @@ export default function EditorPage() {
           </div>
 
           {/* 選択中の要素 */}
-          <div className="border-b border-slate-200 px-3 py-2 text-sm">
-            <div className="mb-1 text-xs font-semibold text-slate-500">選択中</div>
-            {!selected && <div className="text-xs text-slate-400">要素をクリックすると詳細が出ます</div>}
+          <div className="px-3 py-2 text-sm" style={{ borderBottom: '1px solid var(--border-soft)' }}>
+            <div className="mb-1 text-xs font-semibold hb-muted">選択中</div>
+            {!selected && <div className="text-xs hb-faint">要素をクリックすると詳細が出ます</div>}
             {selWall && (() => {
               const a = nodeById.get(selWall.a);
               const b = nodeById.get(selWall.b);
@@ -277,8 +271,8 @@ export default function EditorPage() {
           </div>
 
           {/* 実測 */}
-          <div className="border-b border-slate-200 px-3 py-2 text-sm">
-            <div className="mb-1 text-xs font-semibold text-slate-500">実測 — 入れるほど図が確かになります</div>
+          <div className="px-3 py-2 text-sm" style={{ borderBottom: '1px solid var(--border-soft)' }}>
+            <div className="mb-1 text-xs font-semibold hb-muted">実測 — 入れるほど図が確かになります</div>
             {selWall && (
               <MeasureInput
                 label="選択中の壁の実測長(mm)"
@@ -302,7 +296,7 @@ export default function EditorPage() {
               onSubmit={(v) => useEditor.getState().addMeasurement({ type: 'ceilingHeight', targetIds: [], valueMm: v })}
             />
             {!selWall && !selOpening && (
-              <p className="mt-1 text-xs text-slate-400">壁や開口を選択すると、その実測値を入れられます</p>
+              <p className="mt-1 text-xs hb-faint">壁や開口を選択すると、その実測値を入れられます</p>
             )}
 
             <div className="mt-2 text-xs font-semibold text-slate-500">次に測ると効く場所</div>
@@ -337,14 +331,14 @@ export default function EditorPage() {
                 </ul>
               </div>
             )}
-            <Link href="/survey" className="mt-2 inline-block rounded border border-slate-300 px-2.5 py-1.5 text-xs hover:bg-slate-50">
+            <Link href="/app/survey" className="hb-btn hb-outline mt-2 inline-flex" style={{ fontSize: 12 }}>
               現況調査報告書をつくる
             </Link>
           </div>
 
           {/* 部屋一覧 */}
           <div className="px-3 py-2">
-            <div className="mb-1 text-xs font-semibold text-slate-500">
+            <div className="mb-1 text-xs font-semibold hb-muted">
               部屋({level.rooms.length}) — 畳数は面積÷1.62㎡の参考値
             </div>
             <table className="w-full text-sm">
@@ -374,7 +368,7 @@ export default function EditorPage() {
                   </tr>
                 ))}
                 {!level.rooms.length && (
-                  <tr><td className="py-2 text-xs text-slate-400">壁で囲むと部屋を認識します</td></tr>
+                  <tr><td className="py-2 text-xs hb-faint">壁で囲むと部屋を認識します</td></tr>
                 )}
               </tbody>
             </table>
@@ -407,7 +401,7 @@ function MeasureInput({ label, onSubmit }: { label: string; onSubmit: (v: number
             setV('');
           }
         }}
-        className="rounded bg-slate-800 px-2 py-1 text-xs text-white"
+        className="hb-btn hb-dark" style={{ padding: '7px 12px', fontSize: 12 }}
       >
         登録
       </button>

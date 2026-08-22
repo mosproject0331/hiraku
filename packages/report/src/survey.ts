@@ -8,7 +8,7 @@ import {
 } from '@hiraku/core';
 import { DISCLAIMER, esc, htmlDoc } from './html';
 
-const CONF_COLOR = { estimated: '#9ca3af', hypothesis: '#d97706', measured: '#16a34a' } as const;
+const CONF_COLOR = { estimated: '#a8a29a', hypothesis: '#c08a12', measured: '#2f7a58' } as const;
 const CONF_LABEL = { estimated: '推定', hypothesis: '仮説', measured: '実測' } as const;
 const TYPE_LABEL: Record<Measurement['type'], string> = {
   wallLength: '壁の長さ',

@@ -354,12 +354,12 @@ export default function PlanCanvas() {
   const g = model.moduleMm;
   for (let x = Math.floor((minX - M) / g) * g; x <= maxX + M; x += g) {
     gridLines.push(
-      <line key={'gx' + x} x1={x} y1={minY - M} x2={x} y2={maxY + M} stroke="#e2e8f0" strokeWidth={12} />,
+      <line key={'gx' + x} x1={x} y1={minY - M} x2={x} y2={maxY + M} stroke="var(--border-soft)" strokeWidth={12} />,
     );
   }
   for (let y = Math.floor((minY - M) / g) * g; y <= maxY + M; y += g) {
     gridLines.push(
-      <line key={'gy' + y} x1={minX - M} y1={y} x2={maxX + M} y2={y} stroke="#e2e8f0" strokeWidth={12} />,
+      <line key={'gy' + y} x1={minX - M} y1={y} x2={maxX + M} y2={y} stroke="var(--border-soft)" strokeWidth={12} />,
     );
   }
 
@@ -369,7 +369,8 @@ export default function PlanCanvas() {
     <svg
       ref={svgRef}
       viewBox={vb}
-      className="h-full w-full touch-none select-none bg-white"
+      className="h-full w-full touch-none select-none"
+      style={{ background: 'var(--sunken)' }}
       onClick={onBackgroundClick}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -385,7 +386,7 @@ export default function PlanCanvas() {
           <g key={'face' + i}>
             <polygon
               points={pts.map((p) => p.x + ',' + p.y).join(' ')}
-              fill="#f8fafc"
+              fill="var(--card)"
               stroke="none"
             />
             {room && (

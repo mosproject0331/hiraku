@@ -114,7 +114,7 @@ export default function ProjectPage() {
   return (
     <div className="flex h-screen flex-col bg-slate-100">
       <header className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-2">
-        <Link href="/" className="text-sm font-semibold text-slate-500 hover:text-slate-800">HIRAKU</Link>
+        <Link href="/app" className="text-sm font-semibold text-slate-500 hover:text-slate-800">HIRAKU</Link>
         <input
           value={s.projectName}
           onChange={(e) => s.setProjectName(e.target.value)}
@@ -181,7 +181,7 @@ export default function ProjectPage() {
               <h2 className="font-semibold">確認事項ToDo — 窓口×質問文</h2>
               {todoItems.length === 0 && (
                 <p className="mt-1 text-sm text-slate-400">
-                  <Link href="/diagnose" className="underline">法規制診断</Link>を実行すると、確認先ごとのToDoがここに並びます。
+                  <Link href="/app/diagnose" className="underline">法規制診断</Link>を実行すると、確認先ごとのToDoがここに並びます。
                 </p>
               )}
               <ul className="mt-2 space-y-2">
@@ -243,7 +243,7 @@ export default function ProjectPage() {
             />
           ) : (
             <p className="p-6 text-sm text-slate-500">
-              診断がまだありません。<Link href="/diagnose" className="underline">モードB診断</Link>を実行してください。
+              診断がまだありません。<Link href="/app/diagnose" className="underline">モードB診断</Link>を実行してください。
             </p>
           ))}
 
@@ -255,7 +255,7 @@ export default function ProjectPage() {
           <div className="mx-auto max-w-4xl px-6 py-6">
             {!s.lastPlans && (
               <p className="text-sm text-slate-500">
-                改修案がまだありません。<Link href="/plan" className="underline">改修の相談</Link>で3案をつくってください。
+                改修案がまだありません。<Link href="/app/plan" className="underline">改修の相談</Link>で3案をつくってください。
               </p>
             )}
             <div className="grid gap-4 lg:grid-cols-3">

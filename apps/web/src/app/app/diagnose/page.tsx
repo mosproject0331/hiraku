@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   runDiagnosis,
   USE_LABEL,
@@ -29,9 +30,26 @@ interface ChoiceStep {
 }
 
 export default function DiagnosePage() {
+  return (
+    <Suspense fallback={<main className="mx-auto max-w-2xl px-6 py-10 text-sm text-slate-500">読み込み中…</main>}>
+      <DiagnoseInner />
+    </Suspense>
+  );
+}
+
+function DiagnoseInner() {
+  const search = useSearchParams();
   const [step, setStep] = useState(0);
   const [html, setHtml] = useState<string | null>(null);
   const [data, setData] = useState<Partial_>({ setsudo: { flag: 'unknown' } });
+  // ランディングのチップから用途を引き継ぐ
+  useEffect(() => {
+    const u = search.get('use');
+    if (u && (USES as string[]).includes(u)) {
+      setData((d) => ({ ...d, desiredUse: u as DesiredUse }));
+      setStep((s) => (s === 0 ? s : s));
+    }
+  }, [search]);
   const [address, setAddress] = useState('');
   const [geo, setGeo] = useState<string | null>(null);
   const [areaText, setAreaText] = useState('');
@@ -186,7 +204,7 @@ export default function DiagnosePage() {
 
   const Frame = ({ children, canNext = true }: { children: React.ReactNode; canNext?: boolean }) => (
     <main className="mx-auto max-w-2xl px-6 py-10">
-      <a href="/" className="text-sm text-slate-500 hover:text-slate-800">← HIRAKU</a>
+      <a href="/app" className="text-sm text-slate-500 hover:text-slate-800">← HIRAKU</a>
       <div className="mt-3 h-1.5 w-full overflow-hidden rounded bg-slate-200">
         <div className="h-full bg-slate-700 transition-all" style={{ width: `${(step / totalSteps) * 100}%` }} />
       </div>

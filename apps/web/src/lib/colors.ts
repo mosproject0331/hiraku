@@ -1,10 +1,11 @@
 import type { Confidence } from '@hiraku/core';
 
 /** 確度3色(§2-3): estimated=グレー / hypothesis=黄 / measured=緑 */
+/** DESIGN.md v3.0 §1: 確度3色は製品の意味論。装飾に流用しない */
 export const CONF_COLOR: Record<Confidence, string> = {
-  estimated: '#9ca3af',
-  hypothesis: '#d97706',
-  measured: '#16a34a',
+  estimated: '#a8a29a',
+  hypothesis: '#c08a12',
+  measured: '#2f7a58',
 };
 
 export const CONF_LABEL: Record<Confidence, string> = {

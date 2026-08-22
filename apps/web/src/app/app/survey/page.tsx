@@ -23,7 +23,7 @@ export default function SurveyPage() {
   return (
     <div className="flex h-screen flex-col">
       <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-2">
-        <Link href="/editor" className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">
+        <Link href="/app/editor" className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">
           ← エディタへ戻る
         </Link>
         <input

@@ -117,7 +117,7 @@ function PlanCard({ plan, model }: { plan: HearingPlan; model: SpaceModel }) {
         onClick={() => {
           const next = applyOps(model, plan.ops);
           useEditor.getState().loadModel(next);
-          router.push('/editor');
+          router.push('/app/editor');
         }}
         className="mt-3 w-full rounded border border-slate-300 py-2 text-sm hover:bg-slate-50"
       >
@@ -165,7 +165,7 @@ export default function PlanPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
-      <Link href="/" className="text-sm text-slate-500 hover:text-slate-800">← HIRAKU</Link>
+      <Link href="/app" className="text-sm text-slate-500 hover:text-slate-800">← HIRAKU</Link>
       <h1 className="mt-2 text-2xl font-bold">改修の相談</h1>
       <p className="mt-1 text-sm text-slate-600">
         いまエディタにある間取り({model.levels[0]!.rooms.length}部屋)をもとに、要望を聞いて3案つくります。
@@ -174,7 +174,7 @@ export default function PlanPage() {
 
       {!hasModel && (
         <div className="mt-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          間取りがまだ空です。先に<Link href="/editor" className="underline">エディタ</Link>でサンプルを読み込むか、壁を描いてください。
+          間取りがまだ空です。先に<Link href="/app/editor" className="underline">エディタ</Link>でサンプルを読み込むか、壁を描いてください。
         </div>
       )}
 
