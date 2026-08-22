@@ -1,6 +1,6 @@
 export * from './types';
 export * from './geometry';
-export { detectRooms, detectFaces, setRoomName, withDetectedRooms } from './rooms';
+export { detectRooms, detectFaces, outerBoundary, setRoomName, withDetectedRooms } from './rooms';
 export type { Face } from './rooms';
 export { snapToGrid } from './grid';
 export { estimateModule } from './module';
@@ -37,6 +37,8 @@ export {
   solarPosition,
   solarNoon,
   sunTimes,
+  boundaryAreaM2,
+  planAreaM2,
 } from './geo';
 export type { Site, SolarPosition, SunTimes } from './geo';
 export {

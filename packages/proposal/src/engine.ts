@@ -248,6 +248,98 @@ function permitSteps(ctx: Ctx, strategy: Strategy): WorkStep[] {
     });
   }
 
+  if (use === 'retail') {
+    out.push({
+      id: sid('permit'),
+      title: '通りから中が見えるようにする',
+      why:
+        '物販は、前を通る人が「入れる店だ」と分かるかで売上が決まる。' +
+        '開口をいじるのは構造に関わるので、まず抜ける壁かを確かめる。',
+      stage: 1,
+      by: 'pro',
+      ops: [],
+      blockedBy: ['前面の壁に開口を広げられるか、建築士に確かめる'],
+      basedOn: front ? [`${roomLabel(front, 'front')}の窓は${front.windows}か所`] : undefined,
+    });
+    out.push({
+      id: sid('permit'),
+      title: '在庫の置き場を、売場と分けて確保する',
+      why: '売場に在庫が出ていると、店が散らかって見える。奥の部屋をひとつ倉庫に決めておく。',
+      stage: 2,
+      by: 'self',
+      ops: [],
+      basedOn: ctx.quiet ? [`${roomLabel(ctx.quiet, 'quiet')}が使える`] : undefined,
+    });
+  }
+
+  if (use === 'coworking') {
+    out.push({
+      id: sid('permit'),
+      title: '光回線を引き込む',
+      why:
+        'コワーキングはネットの品質が商品そのもの。引き込みには工事と待ち時間があり、' +
+        '内装より前に申し込まないと開業日に間に合わない。',
+      stage: 1,
+      by: 'pro',
+      ops: [],
+      blockedBy: ['その住所に光回線を引けるか、事業者に確かめる（開通まで数週間かかる）'],
+    });
+    out.push({
+      id: sid('permit'),
+      title: '話せる場所と、黙る場所を分ける',
+      why: 'いまは通話が必ず起きる。ひと部屋を閉じられるようにしておくと、席の使われ方が安定する。',
+      stage: 2,
+      by: handsFor(ctx, 'finish'),
+      ops: [],
+      basedOn: ctx.quiet ? [`${roomLabel(ctx.quiet, 'quiet')}を閉じられる`] : undefined,
+    });
+    out.push({
+      id: sid('permit'),
+      title: '席のそばに電源を回す',
+      why: '長くいる場所は、電源の位置が席の位置を決める。机の並びが決まってから配線する。',
+      stage: 2,
+      by: 'licensed',
+      ops: [{ op: 'electrical', work: 'add_outlet', count: 8 }],
+    });
+  }
+
+  if (use === 'library') {
+    out.push({
+      id: sid('permit'),
+      title: '書架を置く壁の、床を確かめる',
+      why:
+        '本は重い。壁一面の書架で、床にかかる重さは一気に増える。' +
+        '古い家の床は、そこまでの重さを想定していない。',
+      stage: 1,
+      by: 'licensed',
+      ops: [],
+      blockedBy: ['書架を置く位置の床下（根太・大引）を、建築士か大工に見てもらう'],
+    });
+    out.push({
+      id: sid('permit'),
+      title: '直射日光の当たらない壁を、書架にあてる',
+      why: '本は日に焼ける。いちばん光の入る面は人が座る場所にし、書架は光の当たらない側へ回す。',
+      stage: 2,
+      by: handsFor(ctx, 'finish'),
+      ops: [],
+    });
+  }
+
+  if (use === 'home_plus') {
+    out.push({
+      id: sid('permit'),
+      title: '住まいと店を、戸で分ける',
+      why:
+        '兼用住宅は、店の部分の広さに目安がある（おおむね50㎡以下かつ延べ面積の半分未満）。' +
+        'どこからが店かを、線で決めておく必要がある。',
+      stage: 1,
+      by: 'pro',
+      ops: [],
+      blockedBy: ['建築指導課に、兼用住宅として通るかを確かめる'],
+      basedOn: ctx.s.floorAreaM2 ? [`延床 ${Math.round(ctx.s.floorAreaM2)}㎡`] : undefined,
+    });
+  }
+
   if (ctx.s.floorAreaM2 && ctx.s.floorAreaM2 > 200) {
     out.push({
       id: sid('permit'),

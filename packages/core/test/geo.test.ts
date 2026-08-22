@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   bearingToPlanHeading, lonLatToPixel, metersPerPixel, northHeadingInPlan,
-  exteriorCamera, pixelToLonLat, planToLonLat, solarNoon, solarPosition, sunTimes,
+  boundaryAreaM2, exteriorCamera, pixelToLonLat, planAreaM2, planToLonLat, solarNoon, solarPosition, sunTimes,
   type Site, type SpaceModel,
 } from '../src/index';
 
@@ -174,5 +174,30 @@ describe('外からの視点', () => {
     const d2 = exteriorCamera(two)!;
     const dist = (c: typeof d1) => Math.hypot(c.position[0] - 3, c.position[2] - 2.5);
     expect(dist(d2)).toBeGreaterThan(dist(d1));
+  });
+});
+
+describe('敷地の面積', () => {
+  it('緯度経度の四角形から、およその面積が出る', () => {
+    // 東京あたりで、およそ 20m × 15m
+    const dLat = 15 / 111320;
+    const dLon = 20 / (111320 * Math.cos((TOKYO.lat * Math.PI) / 180));
+    const a = boundaryAreaM2([
+      { lat: TOKYO.lat, lon: TOKYO.lon },
+      { lat: TOKYO.lat, lon: TOKYO.lon + dLon },
+      { lat: TOKYO.lat + dLat, lon: TOKYO.lon + dLon },
+      { lat: TOKYO.lat + dLat, lon: TOKYO.lon },
+    ]);
+    expect(a).toBeGreaterThan(295);
+    expect(a).toBeLessThan(305);
+  });
+
+  it('点が2つ以下なら0', () => {
+    expect(boundaryAreaM2([{ lat: 35, lon: 139 }])).toBe(0);
+  });
+
+  it('図面の輪郭からも面積が出る', () => {
+    expect(planAreaM2([{ x: 0, y: 0 }, { x: 3640, y: 0 }, { x: 3640, y: 2730 }, { x: 0, y: 2730 }]))
+      .toBeCloseTo(9.94, 2);
   });
 });

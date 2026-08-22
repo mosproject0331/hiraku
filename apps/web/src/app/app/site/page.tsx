@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  detectFaces, lonLatToPixel, metersPerPixel, northHeadingInPlan,
-  pixelToLonLat, solarNoon, solarPosition, type Site, type XY,
+  boundaryAreaM2, detectFaces, lonLatToPixel, metersPerPixel, northHeadingInPlan,
+  outerBoundary, pixelToLonLat, planAreaM2, solarNoon, solarPosition,
+  totalFloorAreaM2, type Site, type XY,
 } from '@hiraku/core';
 import { GSI_CREDIT, LAYERS, searchAddress, tileUrl, type Layer, type Place } from '@/lib/gsi';
 import { jp } from '@/components/Jp';
@@ -39,6 +40,11 @@ export default function SitePage() {
   );
   const [rotation, setRotation] = useState(saved?.rotationDeg ?? 0);
   const [when, setWhen] = useState('12');
+  const [drawing, setDrawing] = useState(false);
+  const [boundary, setBoundary] = useState<{ lat: number; lon: number }[]>(saved?.boundary ?? []);
+  const [coverage, setCoverage] = useState(saved?.coveragePct ? String(saved.coveragePct) : '');
+  const [far, setFar] = useState(saved?.farPct ? String(saved.farPct) : '');
+  const [limitSource, setLimitSource] = useState(saved?.limitSource ?? '');
   const boxRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 360, h: 360 });
 
@@ -136,6 +142,7 @@ export default function SitePage() {
     let lastX = 0;
     let lastY = 0;
     const down = (e: PointerEvent) => {
+      if (drawing) return; // 線を引いているあいだは地図を動かさない
       if (id !== null) return;
       id = e.pointerId;
       lastX = e.clientX;
@@ -167,7 +174,33 @@ export default function SitePage() {
       el.removeEventListener('pointerup', up);
       el.removeEventListener('pointercancel', up);
     };
-  }, [centre, zoom]);
+  }, [centre, zoom, drawing]);
+
+  /** 地図の上をタップして、敷地の角を置く */
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || !centre || !drawing) return;
+    const onTap = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      const p = lonLatToPixel(centre.lon, centre.lat, zoom);
+      const px = p.x - r.width / 2 + (e.clientX - r.left);
+      const py = p.y - r.height / 2 + (e.clientY - r.top);
+      const at = pixelToLonLat(px, py, zoom);
+      setBoundary((b) => {
+        // 最初の点の近くをもう一度押したら、輪を閉じる（＝描き終わり）
+        if (b.length >= 3) {
+          const first = lonLatToPixel(b[0]!.lon, b[0]!.lat, zoom);
+          if (Math.hypot(first.x - px, first.y - py) < 14) {
+            setDrawing(false);
+            return b;
+          }
+        }
+        return [...b, at];
+      });
+    };
+    el.addEventListener('pointerdown', onTap);
+    return () => el.removeEventListener('pointerdown', onTap);
+  }, [centre, zoom, drawing]);
 
   /* ── 図面を地図に重ねる ── */
   const overlay = useMemo(() => {
@@ -194,6 +227,28 @@ export default function SitePage() {
     return { ...s, noon };
   }, [centre, when]);
 
+  /** 敷地の広さと、建物の広さ */
+  const areas = useMemo(() => {
+    const siteM2 = boundaryAreaM2(boundary);
+    const lv0 = model.levels[0];
+    const outline = lv0 ? outerBoundary(lv0) : [];
+    // 建築面積は外周の水平投影。軒の出は1mを超えた分だけ算入するのが原則なので、
+    // ここでは軒を含めない概算にとどめる
+    const buildM2 = planAreaM2(outline);
+    const floorM2 = totalFloorAreaM2(model);
+    const cov = Number(coverage);
+    const f = Number(far);
+    return {
+      siteM2,
+      buildM2,
+      floorM2,
+      coverageNow: siteM2 > 0 ? (buildM2 / siteM2) * 100 : 0,
+      farNow: siteM2 > 0 ? (floorM2 / siteM2) * 100 : 0,
+      coverageLimit: Number.isFinite(cov) && cov > 0 ? cov : undefined,
+      farLimit: Number.isFinite(f) && f > 0 ? f : undefined,
+    };
+  }, [boundary, model, coverage, far]);
+
   const site: Site | null = centre
     ? {
         address: query || saved?.address || '',
@@ -203,6 +258,10 @@ export default function SitePage() {
         anchorYMm: plan?.centre.y ?? 0,
         rotationDeg: ((rotation % 360) + 360) % 360,
         zoom,
+        boundary: boundary.length >= 3 ? boundary : undefined,
+        coveragePct: areas.coverageLimit,
+        farPct: areas.farLimit,
+        limitSource: limitSource.trim() || undefined,
         source: GSI_CREDIT,
         at: new Date().toISOString(),
       }
@@ -275,6 +334,32 @@ export default function SitePage() {
             />
           ))}
           {!centre && <p className="site-empty">住所を入れると、ここに地図が出ます</p>}
+          {centre && boundary.length > 0 && (
+            <svg className="site-overlay" viewBox={`0 0 ${size.w} ${size.h}`} width={size.w} height={size.h}>
+              {(() => {
+                const c = lonLatToPixel(centre.lon, centre.lat, zoom);
+                const pts = boundary
+                  .map((b) => {
+                    const p = lonLatToPixel(b.lon, b.lat, zoom);
+                    return `${p.x - c.x + size.w / 2},${p.y - c.y + size.h / 2}`;
+                  })
+                  .join(' ');
+                return (
+                  <>
+                    <polygon points={pts} fill="rgba(47,122,88,.14)" stroke="#2f7a58" strokeWidth={2}
+                      strokeDasharray={drawing ? '6 4' : undefined} />
+                    {boundary.map((b, i) => {
+                      const p = lonLatToPixel(b.lon, b.lat, zoom);
+                      return (
+                        <circle key={i} cx={p.x - c.x + size.w / 2} cy={p.y - c.y + size.h / 2} r={4}
+                          fill="#fff" stroke="#2f7a58" strokeWidth={2} />
+                      );
+                    })}
+                  </>
+                );
+              })()}
+            </svg>
+          )}
           {overlay && (
             <svg className="site-overlay" viewBox={`0 0 ${size.w} ${size.h}`} width={size.w} height={size.h}>
               <g transform={overlay}>
@@ -329,6 +414,19 @@ export default function SitePage() {
           <button className="chip" onClick={() => setZoom((z) => Math.min(21, z + 1))} aria-label="寄る">＋</button>
         </div>
 
+        <div className="chiprow site-boundary-tools">
+          <button className={'chip' + (drawing ? ' on' : '')} onClick={() => setDrawing((v) => !v)}>
+            {drawing ? '引き終わる' : '敷地の線を引く'}
+          </button>
+          {boundary.length > 0 && (
+            <>
+              <button className="chip" onClick={() => setBoundary((b) => b.slice(0, -1))}>1点戻す</button>
+              <button className="chip" onClick={() => { setBoundary([]); setDrawing(false); }}>消す</button>
+            </>
+          )}
+          {drawing && <span className="numpad-note">地図を押して角を置き、最初の点でもう一度押すと閉じます</span>}
+        </div>
+
         <div className="site-rot">
           <label>
             <span>図面の右が向いている方位</span>
@@ -366,6 +464,55 @@ export default function SitePage() {
             )}
             <div><dt>出典</dt><dd>{GSI_CREDIT}</dd></div>
           </dl>
+        </section>
+      )}
+
+      {(boundary.length >= 3 || coverage || far) && (
+        <section className="site-limits">
+          <h3>敷地と建物の大きさ</h3>
+          <dl>
+            <div><dt>敷地面積</dt><dd className="num">{areas.siteM2 ? `${areas.siteM2.toFixed(1)} ㎡（${(areas.siteM2 / 3.30578).toFixed(1)}坪）` : '（線を引くと出ます）'}</dd></div>
+            <div><dt>建築面積</dt><dd className="num">{areas.buildM2.toFixed(1)} ㎡</dd></div>
+            <div><dt>延床面積</dt><dd className="num">{areas.floorM2.toFixed(1)} ㎡</dd></div>
+          </dl>
+
+          <div className="site-limitin no-print">
+            <label className="numpad-field">
+              <span>建ぺい率</span>
+              <input type="number" inputMode="numeric" value={coverage} onChange={(e) => setCoverage(e.target.value)} />
+              <b>%</b>
+            </label>
+            <label className="numpad-field">
+              <span>容積率</span>
+              <input type="number" inputMode="numeric" value={far} onChange={(e) => setFar(e.target.value)} />
+              <b>%</b>
+            </label>
+            <label className="numpad-field wide">
+              <span>どこで聞いたか</span>
+              <input value={limitSource} placeholder="例: 三田市 都市計画課 2026-08-20" onChange={(e) => setLimitSource(e.target.value)} />
+            </label>
+          </div>
+          <p className="site-limitnote">
+            建ぺい率・容積率はこの道具では作れません（地区で決まります）。
+            都市計画課で聞いた数字を入れてください。入れた数字は聞いた事実として残ります。
+          </p>
+
+          {areas.siteM2 > 0 && (areas.coverageLimit || areas.farLimit) && (
+            <ul className="site-judge">
+              {areas.coverageLimit && (
+                <li className={areas.coverageNow > areas.coverageLimit ? 'over' : 'ok'}>
+                  建ぺい率 いま <b className="num">{areas.coverageNow.toFixed(1)}%</b> ／ 上限 {areas.coverageLimit}%
+                  — {areas.coverageNow > areas.coverageLimit ? '超えています。増築はできません（既存不適格の可能性）' : '余裕があります'}
+                </li>
+              )}
+              {areas.farLimit && (
+                <li className={areas.farNow > areas.farLimit ? 'over' : 'ok'}>
+                  容積率 いま <b className="num">{areas.farNow.toFixed(1)}%</b> ／ 上限 {areas.farLimit}%
+                  — {areas.farNow > areas.farLimit ? '超えています' : `あと ${((areas.farLimit - areas.farNow) / 100 * areas.siteM2).toFixed(1)}㎡ 積めます`}
+                </li>
+              )}
+            </ul>
+          )}
         </section>
       )}
 

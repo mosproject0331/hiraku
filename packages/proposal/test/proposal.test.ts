@@ -284,3 +284,38 @@ describe('聞いた答えが、案に効く', () => {
     expect(dead).toEqual([]);
   });
 });
+
+describe('用途ごとの中身', () => {
+  const uses = ['cafe', 'minpaku', 'kani_shukuhaku', 'sharehouse', 'atelier', 'retail', 'coworking', 'library', 'home_plus'] as const;
+
+  it('どの用途にも、その用途ならではの手が入る', () => {
+    const generic = ['照明を、天井から下ろす', 'コンセントを増やす', '窓の内側に、もう一枚入れる'];
+    for (const use of uses) {
+      const p = buildProposals(model, { ...baseProfile, use }, emptySite)[1]!;
+      const titles = p.steps.map((s) => s.title);
+      const specific = titles.filter((t) => !generic.includes(t) && !t.includes('床と壁') && !t.includes('こもれる'));
+      expect(specific.length, `${use} に固有の手がない`).toBeGreaterThan(0);
+    }
+  });
+
+  it('用途が違えば、手の中身も違う', () => {
+    const sig = (u: (typeof uses)[number]) =>
+      buildProposals(model, { ...baseProfile, use: u }, emptySite)[1]!.steps.map((s) => s.title).join('|');
+    const all = uses.map(sig);
+    // 少なくとも7通りに割れる（宿2種は似るため）
+    expect(new Set(all).size).toBeGreaterThanOrEqual(7);
+  });
+
+  it('物販は通りからの見え方、図書館は床の重さを言う', () => {
+    const retail = buildProposals(model, { ...baseProfile, use: 'retail' }, emptySite)[0]!;
+    expect(retail.steps.map((s) => s.title).join('|')).toContain('通りから');
+    const lib = buildProposals(model, { ...baseProfile, use: 'library' }, emptySite)[0]!;
+    expect(lib.steps.map((s) => s.title).join('|')).toContain('書架');
+  });
+
+  it('コワーキングは、内装より先に回線を言う', () => {
+    const p = buildProposals(model, { ...baseProfile, use: 'coworking' }, emptySite)[0]!;
+    const net = p.steps.find((s) => s.title.includes('光回線'));
+    expect(net?.stage).toBe(1);
+  });
+});

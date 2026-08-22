@@ -23,6 +23,14 @@ export interface Site {
   rotationDeg: number;
   /** 地図を見ていた縮尺（航空写真の取り直しに使う） */
   zoom: number;
+  /** 敷地の境界（緯度経度で持つ。建物を動かしても崩れない） */
+  boundary?: { lat: number; lon: number }[];
+  /** 都市計画課で聞いた建ぺい率(%) */
+  coveragePct?: number;
+  /** 都市計画課で聞いた容積率(%) */
+  farPct?: number;
+  /** その数字をどこで聞いたか */
+  limitSource?: string;
   /** どこから引いた住所か */
   source?: string;
   /** いつ決めたか */
@@ -217,4 +225,33 @@ export function sunTimes(when: Date, lat: number, lon: number): SunTimes {
   };
 
   return { sunrise: cross(-5), noon, sunset: cross(5) };
+}
+
+
+/** 緯度経度の輪郭の面積(㎡)。建物ほどの大きさなら平面として扱ってよい */
+export function boundaryAreaM2(points: { lat: number; lon: number }[]): number {
+  if (points.length < 3) return 0;
+  const lat0 = points.reduce((s, p) => s + p.lat, 0) / points.length;
+  const mPerLat = 111320;
+  const mPerLon = 111320 * Math.cos((lat0 * Math.PI) / 180);
+  const xy = points.map((p) => ({ x: p.lon * mPerLon, y: p.lat * mPerLat }));
+  let a = 0;
+  for (let i = 0; i < xy.length; i++) {
+    const p = xy[i]!;
+    const q = xy[(i + 1) % xy.length]!;
+    a += p.x * q.y - q.x * p.y;
+  }
+  return Math.abs(a) / 2;
+}
+
+/** 図面の輪郭(mm)の面積(㎡) */
+export function planAreaM2(points: { x: number; y: number }[]): number {
+  if (points.length < 3) return 0;
+  let a = 0;
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i]!;
+    const q = points[(i + 1) % points.length]!;
+    a += p.x * q.y - q.x * p.y;
+  }
+  return Math.abs(a) / 2 / 1e6;
 }

@@ -14,9 +14,9 @@ const geist = Geist({
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
 export const metadata: Metadata = {
-  title: 'HIRAKU — 動画一本から、空き家の可能性を確かめる',
+  title: 'HIRAKU — 測った寸法から、空き家の可能性を確かめる',
   description:
-    '動画や写真を下絵に間取りを起こし、法規制を診断し、改修費の見当までつける。空き家活用のためのAIツール。',
+    '実測した寸法から間取りを起こし、敷地に置き、法規を確かめ、改修の案と概算、そのまま渡せる見積書までをつなぐ。空き家を場にするための道具。',
   applicationName: 'HIRAKU',
   manifest: `${base}/manifest.webmanifest`,
   appleWebApp: { capable: true, title: 'HIRAKU', statusBarStyle: 'default' },

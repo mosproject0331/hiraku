@@ -41,8 +41,33 @@ function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T
   );
 }
 
+/** 保存領域がいっぱいのときに投げる */
+export class PhotoQuotaError extends Error {
+  constructor() {
+    super('この端末の保存領域がいっぱいです');
+    this.name = 'PhotoQuotaError';
+  }
+}
+
 export function putPhoto(id: string, dataUrl: string): Promise<unknown> {
-  return tx('readwrite', (s) => s.put(dataUrl, id));
+  return tx('readwrite', (s) => s.put(dataUrl, id)).catch((e: unknown) => {
+    const name = (e as { name?: string } | null)?.name ?? '';
+    if (name === 'QuotaExceededError' || /quota/i.test(String(e))) throw new PhotoQuotaError();
+    throw e;
+  });
+}
+
+/** いまどれだけ使っているか。ブラウザが教えてくれるときだけ */
+export async function storageUse(): Promise<{ usedMb: number; quotaMb: number } | null> {
+  try {
+    const s = navigator.storage;
+    if (!s?.estimate) return null;
+    const e = await s.estimate();
+    if (!e.usage || !e.quota) return null;
+    return { usedMb: e.usage / 1048576, quotaMb: e.quota / 1048576 };
+  } catch {
+    return null;
+  }
 }
 
 export function getPhoto(id: string): Promise<string | undefined> {

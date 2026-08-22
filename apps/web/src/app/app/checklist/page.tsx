@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { COMMON_VIEWING, USE_LABEL, USE_VIEWING, type ChecklistItem, type DesiredUse } from '@hiraku/rules';
 import type { CheckState } from '@hiraku/core';
 import { useEditor } from '@/lib/store';
-import { deletePhoto, getPhotos, putPhoto } from '@/lib/photo-store';
+import { deletePhoto, getPhotos, PhotoQuotaError, putPhoto, storageUse } from '@/lib/photo-store';
 import { toStorableDataUrl } from '@/lib/video-frames';
 
 /**
@@ -47,6 +47,8 @@ export default function ChecklistPage() {
   const [openWhy, setOpenWhy] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const [storeMsg, setStoreMsg] = useState('');
+  const [space, setSpace] = useState<{ usedMb: number; quotaMb: number } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const rows = useMemo<Row[]>(() => {
@@ -101,6 +103,7 @@ export default function ChecklistPage() {
   async function onPickPhoto(label: string, files: FileList | null) {
     if (!files?.length) return;
     setBusy(label);
+    setStoreMsg('');
     try {
       for (const f of Array.from(files).slice(0, 4)) {
         const url = await toStorableDataUrl(f, 1280, 0.78);
@@ -108,6 +111,14 @@ export default function ChecklistPage() {
         await putPhoto(id, url);
         addCheckPhoto(label, id);
       }
+      setSpace(await storageUse());
+    } catch (e) {
+      // 入りきらないときは、黙って落とさずに逃げ道を示す
+      setStoreMsg(
+        e instanceof PhotoQuotaError
+          ? 'この端末の保存領域がいっぱいです。調査書に書き出してから、古い写真を消してください。'
+          : '写真を保存できませんでした。もう一度お試しください。',
+      );
     } finally {
       setBusy(null);
     }
@@ -150,6 +161,8 @@ export default function ChecklistPage() {
           )}
         </div>
       </header>
+
+      {storeMsg && <p className="hb-warn chk-storemsg">{storeMsg}</p>}
 
       <div className="chk-list" ref={listRef}>
         {!diagnosedUse && (
@@ -271,6 +284,12 @@ export default function ChecklistPage() {
         <p className="chk-note">
           記録はこの端末の中だけに保存されます。電波がなくても使えます。
           写真は長辺1280pxに縮めて保存します。
+          {space && (
+            <>
+              {' '}いま <b className="num">{space.usedMb.toFixed(0)}MB</b> / 使える{' '}
+              <b className="num">{space.quotaMb.toFixed(0)}MB</b>。
+            </>
+          )}
         </p>
       </div>
 

@@ -60,7 +60,7 @@ export default function Landing() {
       {/*HERO*/}
       <section className="hero">
         <div className="wrap">
-          <h1>動画一本から、<br />空き家の可能性を確かめる</h1>
+          <h1>測った寸法から、<br />空き家の可能性を確かめる</h1>
           <p className="sub">法規制の診断、間取りと3Dの作成、改修計画と概算見積まで。<br />空き家を活かしたい人のための、確かめるための道具です。</p>
 
           <div className="prompt">
@@ -158,7 +158,7 @@ export default function Landing() {
           </div>
           <div className="builtin rv">
             <div className="bi"><svg viewBox="0 0 24 24"><path d="M4 21V9l8-6 8 6v12"/><path d="M9 21v-7h6v7"/></svg>法規制ルールを標準搭載</div>
-            <div className="bi"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>動画から間取りを自動生成</div>
+            <div className="bi"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg>動画や写真を下絵に、間取りを起こす</div>
             <div className="bi"><svg viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21H3v-4z"/><path d="M14 6l4 4"/></svg>実測でモデルを高精度化</div>
             <div className="bi"><svg viewBox="0 0 24 24"><path d="M8 3h8v4H8z"/><path d="M6 7h12v14H6z"/><path d="M9 12h6M9 16h4"/></svg>材料費ベースの概算見積</div>
             <div className="bi"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>資格・許可の要否を判定</div>
@@ -507,7 +507,7 @@ export default function Landing() {
             <details className="faq"><summary>建築士や行政に相談しなくてよくなりますか？<span className="x"></span></summary>
               <p className="a">逆です。相談が上手くなるための道具です。何も分からないまま窓口に行くのと、図面・診断・質問リストを持って行くのとでは、話の進み方がまるで違います。専門家の時間を、いちばん価値のある判断に使ってもらうために作っています。</p></details>
             <details className="faq"><summary>図面が残っていない家でも使えますか？<span className="x"></span></summary>
-              <p className="a">むしろそのために作りました。空き家は図面が失われていることがほとんどです。スマホで室内を一周撮影すれば、間取りの下書きを自動生成します。現地でメジャーを当てて実測すれば、そのまま精度の高い現況図になります。</p></details>
+              <p className="a">むしろそのために作りました。空き家は図面が失われていることがほとんどです。スマホで室内を一周撮影すると、そのコマを下絵として図面の下に敷けます。あとはその上をなぞるだけ。実測した寸法は数値でそのまま打ち込めるので、メジャー1本あれば現況図になります。（動画から間取りを自動で起こす機能は、まだありません）</p></details>
             <details className="faq"><summary>壁を抜けるかどうかは分かりますか？<span className="x"></span></summary>
               <p className="a">断定はしません。写真や動画から構造の安全性を判定することは原理的にできないためです。間仕切り撤去を含む案には必ず構造確認のフラグを付け、建築士への相談を促します。ここは譲らない設計にしています。</p></details>
           </div>

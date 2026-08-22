@@ -21,6 +21,14 @@ const MIN_ROOM_MM2 = 1e4; // 0.01 m^2 未満は縮退面として無視
  * 最大|面積|の面が外周面なのでそれを除外する(部屋が1つの場合は同型の2面から片方を残す)。
  */
 export function detectFaces(level: Level): Face[] {
+  const candidates = detectFacesRaw(level)
+    .filter((f) => Math.abs(f.signedArea) > MIN_ROOM_MM2)
+    .sort((a, b) => Math.abs(b.signedArea) - Math.abs(a.signedArea));
+  return candidates.slice(1); // 先頭 = 外周面
+}
+
+/** 面の抽出そのもの。外周面も含めて返す */
+function detectFacesRaw(level: Level): Face[] {
   const nodeById = new Map(level.nodes.map((n) => [n.id, n] as const));
   const out = new Map<string, HalfEdge[]>();
   for (const w of level.walls) {
@@ -82,10 +90,21 @@ export function detectFaces(level: Level): Face[] {
     }
   }
 
-  const candidates = faces
+  return faces;
+}
+
+/**
+ * 建物の外周（いちばん外側の面）。
+ * 建築面積を出すのに要る。部屋の合計では、壁の厚みぶんが抜ける。
+ */
+export function outerBoundary(level: Level): XY[] {
+  const nodeById = new Map(level.nodes.map((n) => [n.id, n] as const));
+  const all = detectFacesRaw(level);
+  const biggest = all
     .filter((f) => Math.abs(f.signedArea) > MIN_ROOM_MM2)
-    .sort((a, b) => Math.abs(b.signedArea) - Math.abs(a.signedArea));
-  return candidates.slice(1); // 先頭 = 外周面
+    .sort((a, b) => Math.abs(b.signedArea) - Math.abs(a.signedArea))[0];
+  if (!biggest) return [];
+  return biggest.nodeIds.map((id) => nodeById.get(id)!).filter(Boolean);
 }
 
 /** detectFaces の面と同順で Room を生成する */
