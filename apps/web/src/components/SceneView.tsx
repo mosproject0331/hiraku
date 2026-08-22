@@ -3,19 +3,19 @@
 import {
   forwardRef, useEffect, useImperativeHandle, useMemo, useRef,
 } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
 import { Bloom, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing';
-import { ToneMappingMode } from 'postprocessing';
+import { ToneMappingMode, type EffectComposer as PostComposer } from 'postprocessing';
 import type { CameraSpec, RenovationScene } from '@hiraku/core';
 import { buildBuilding, type Building, type LightKey, type WindowLight } from '@/lib/archviz';
 import { buildShell } from '@/lib/shell';
 import { setFinishTextureSize } from '@/lib/finish-material';
 import { layoutPlants, layoutProps } from '@/lib/entourage';
 import { Entourage, Vegetation } from '@/components/Furniture';
-import { capturePreset, profileFor, type QualityProfile } from '@/lib/quality';
+import { profileFor, type QualityProfile } from '@/lib/quality';
 
 export interface SceneViewHandle {
   /** いまの見え方をPNGで取り出す（写実化の下絵に使う） */
@@ -292,105 +292,82 @@ function CameraRig({ cam, shift = 0.06 }: { cam: CameraSpec; shift?: number }) {
 
 /* ---------------- 書き出し ---------------- */
 
-interface Job {
-  wait: number;
-  retries: number;
-  resolve: (v: string | null) => void;
-}
-
-/** 取り込んだ絵が真っ暗・真っ白でないか確かめる（描き直しの途中を掴まないため） */
-function looksRendered(url: string): boolean {
-  try {
-    const img = document.createElement('canvas');
-    const ctx = img.getContext('2d');
-    if (!ctx) return true;
-    const el = new Image();
-    el.src = url;
-    if (!el.complete || !el.width) return true; // 判定できないときは通す
-    img.width = 32;
-    img.height = 32;
-    ctx.drawImage(el, 0, 0, 32, 32);
-    const d = ctx.getImageData(0, 0, 32, 32).data;
-    let sum = 0;
-    let min = 255;
-    let max = 0;
-    for (let i = 0; i < d.length; i += 4) {
-      const l = 0.2126 * d[i]! + 0.7152 * d[i + 1]! + 0.0722 * d[i + 2]!;
-      sum += l;
-      if (l < min) min = l;
-      if (l > max) max = l;
+/** 送る前に長辺を詰めてJPEGにする。回線の細いところでも待たされないため */
+function toCompact(canvas: HTMLCanvasElement, maxEdge = 1400, quality = 0.92): string {
+  const scale = Math.min(1, maxEdge / Math.max(canvas.width, canvas.height));
+  if (scale >= 1) {
+    try {
+      return canvas.toDataURL('image/jpeg', quality);
+    } catch {
+      return canvas.toDataURL('image/png');
     }
-    const mean = sum / (d.length / 4);
-    return mean > 6 && max - min > 8;
-  } catch {
-    return true;
   }
+  const out = document.createElement('canvas');
+  out.width = Math.max(1, Math.round(canvas.width * scale));
+  out.height = Math.max(1, Math.round(canvas.height * scale));
+  const ctx = out.getContext('2d');
+  if (!ctx) return canvas.toDataURL('image/png');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(canvas, 0, 0, out.width, out.height);
+  return out.toDataURL('image/jpeg', quality);
 }
 
+/**
+ * いまの見え方を1枚の絵にする。
+ *
+ * 描き直しの合図を待たず、その場で合成まで走らせて読み出す。
+ * 書き出しのあいだだけ解像度を上げるので、端末が違っても同じ大きさの絵になる。
+ */
 function Capturer({
-  handle, baseDpr, captureDpr,
+  handle, composer, target = 1400,
 }: {
   handle: React.RefObject<SceneViewHandle | null>;
-  baseDpr: number;
-  captureDpr: number;
+  composer: React.RefObject<PostComposer | null>;
+  target?: number;
 }) {
   const gl = useThree((s) => s.gl);
-  const setDpr = useThree((s) => s.setDpr);
-  const invalidate = useThree((s) => s.invalidate);
-  const queue = useRef<Job[]>([]);
-
-  useFrame(() => {
-    const job = queue.current[0];
-    if (!job) return;
-    if (job.wait > 0) {
-      job.wait -= 1;
-      invalidate();
-      return;
-    }
-    let url: string | null = null;
-    try {
-      url = gl.domElement.toDataURL('image/png');
-    } catch {
-      url = null;
-    }
-    if (url && job.retries > 0 && !looksRendered(url)) {
-      job.retries -= 1;
-      job.wait = 3;
-      invalidate();
-      return;
-    }
-    queue.current.shift();
-    job.resolve(url);
-    setDpr(baseDpr);
-    invalidate();
-  }, 2);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
 
   handle.current = {
-    capture: () =>
-      new Promise<string | null>((resolve) => {
-        setDpr(captureDpr);
-        invalidate();
-        queue.current.push({ wait: 4, retries: 2, resolve });
-        // 万一フレームが来なくても止まらないようにする
-        setTimeout(() => {
-          const i = queue.current.findIndex((j) => j.resolve === resolve);
-          if (i >= 0) {
-            queue.current.splice(i, 1);
-            try {
-              resolve(gl.domElement.toDataURL('image/png'));
-            } catch {
-              resolve(null);
-            }
-            setDpr(baseDpr);
-          }
-        }, 2500);
-      }),
+    capture: async () => {
+      const canvas = gl.domElement;
+      const w = size.width || canvas.clientWidth;
+      const h = size.height || canvas.clientHeight;
+      if (!w || !h) return null;
+      const prevRatio = gl.getPixelRatio();
+      const wanted = Math.max(1, Math.min(4, target / Math.max(w, h)));
+      try {
+        if (Math.abs(wanted - prevRatio) > 0.01) {
+          gl.setPixelRatio(wanted);
+          composer.current?.setSize(w, h);
+        }
+        if (composer.current) composer.current.render();
+        else gl.render(scene, camera);
+        return toCompact(canvas, target);
+      } catch {
+        return null;
+      } finally {
+        if (Math.abs(wanted - prevRatio) > 0.01) {
+          gl.setPixelRatio(prevRatio);
+          composer.current?.setSize(w, h);
+          if (composer.current) composer.current.render();
+          else gl.render(scene, camera);
+        }
+      }
+    },
   };
   return null;
 }
 
 /** 開発時だけ、シーンの中身を外から確かめられるようにしておく */
-function DevHandle({ building, props: items, cams }: { building: Building; props: unknown; cams: unknown }) {
+function DevHandle({
+  building, props: items, cams, capture,
+}: {
+  building: Building; props: unknown; cams: unknown;
+  capture: React.RefObject<SceneViewHandle | null>;
+}) {
   const state = useThree();
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') return;
@@ -401,8 +378,9 @@ function DevHandle({ building, props: items, cams }: { building: Building; props
       building,
       props: items,
       cams,
+      capture: () => capture.current?.capture() ?? Promise.resolve(null),
     };
-  }, [state, building, items, cams]);
+  }, [state, building, items, cams, capture]);
   return null;
 }
 
@@ -422,11 +400,15 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
   ref,
 ) {
   const handle = useRef<SceneViewHandle | null>(null);
+  const composerRef = useRef<PostComposer | null>(null);
   useImperativeHandle(ref, () => ({ capture: () => handle.current?.capture() ?? Promise.resolve(null) }), []);
 
   // 素材の細かさは端末に合わせる。作り直しが要るので、組み立ての前に決める
   setFinishTextureSize(quality.texSize);
-  const building = useMemo(() => buildBuilding(scene, light), [scene, light]);
+  const building = useMemo(
+    () => buildBuilding(scene, light, { position: camera.position, target: camera.target }),
+    [scene, light, camera],
+  );
   // カメラの前 1.4m には家具を置かない（レンズに被って構図が壊れるため）
   const avoid = useMemo(
     () => scene.cameras.map((c) => ({ x: c.position[0], z: c.position[2], r: 1.4 })),
@@ -443,7 +425,6 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
 
   if (!building) return null;
   const sky = SKY[light];
-  const cap = capturePreset(quality);
   const night = light === 'night';
 
   return (
@@ -467,8 +448,8 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
       <Env intensity={sky.env} />
       <Sky light={light} radius={building.bounds.r} />
       <CameraRig cam={camera} />
-      <Capturer handle={handle} baseDpr={quality.dprMax} captureDpr={cap.dprMax} />
-      <DevHandle building={building} props={props} cams={scene.cameras} />
+      <Capturer handle={handle} composer={composerRef} />
+      <DevHandle building={building} props={props} cams={scene.cameras} capture={handle} />
 
       <ambientLight intensity={0.03} />
       <hemisphereLight args={[sky.zenith, sky.ground, sky.hemi]} />
@@ -489,6 +470,13 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
         shadow-normalBias={0.022}
       />
       <SunTarget at={[building.bounds.cx, 1.1, building.bounds.cz]} />
+      {/* 床で跳ね返った光の代わり。弱く下から当てると、天井と壁の下半分が沈まない */}
+      <directionalLight
+        position={[building.bounds.cx, -6, building.bounds.cz]}
+        target={sunTargetObject}
+        intensity={building.sun.intensity * 0.16}
+        color={light === 'night' ? '#3d4a63' : '#ffe9cf'}
+      />
       <WindowLights windows={building.windows} light={light} gain={sky.rect} />
 
       <Shell building={building} transmission={quality.transmission} />
@@ -496,6 +484,7 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
       <Vegetation plants={plants} />
 
       <EffectComposer
+        ref={composerRef}
         multisampling={quality.msaa}
         enableNormalPass={quality.ao}
         frameBufferType={THREE.HalfFloatType}

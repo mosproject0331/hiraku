@@ -97,13 +97,16 @@ export interface PerspectiveResult {
 
 /** Gemini に画像+指示を送り、写実パースを受け取る */
 export async function renderPerspective(
+  /** 3Dから取り込んだ下絵（データURL。PNGでもJPEGでもよい） */
   conditionPng: string,
   prompt: string,
   apiKey: string,
   model = 'gemini-3.1-flash-image',
 ): Promise<PerspectiveResult> {
   if (!apiKey) throw new Error('画像生成のAPIキーが設定されていません');
-  const base64 = conditionPng.replace(/^data:image\/\w+;base64,/, '');
+  const head = /^data:(image\/[\w+.-]+);base64,/.exec(conditionPng);
+  const conditionMime = head?.[1] ?? 'image/png';
+  const base64 = conditionPng.replace(/^data:image\/[\w+.-]+;base64,/, '');
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`,
@@ -115,7 +118,7 @@ export async function renderPerspective(
           {
             parts: [
               { text: prompt },
-              { inline_data: { mime_type: 'image/png', data: base64 } },
+              { inline_data: { mime_type: conditionMime, data: base64 } },
             ],
           },
         ],

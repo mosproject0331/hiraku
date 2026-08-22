@@ -129,7 +129,17 @@ const SUN_SETTING: Record<LightKey, { alt: number; swing: number; intensity: num
   night: { alt: 40, swing: 0, intensity: 0.06, color: '#9fb4d8' },
 };
 
-export function buildBuilding(scene: RenovationScene, light: LightKey = 'noon'): Building | null {
+/** いま覗いている視点。太陽をこの構図に合わせて置くために使う */
+export interface ViewHint {
+  position: [number, number, number];
+  target: [number, number, number];
+}
+
+export function buildBuilding(
+  scene: RenovationScene,
+  light: LightKey = 'noon',
+  view?: ViewHint,
+): Building | null {
   const level = scene.model.levels[0];
   if (!level) return null;
   const H = (level.heightMm ?? 2400) / 1000;
@@ -297,7 +307,7 @@ export function buildBuilding(scene: RenovationScene, light: LightKey = 'noon'):
     posts: [...postAt.values()],
     beams,
     windows,
-    sun: sunFor(windows, bounds, light),
+    sun: sunFor(windows, bounds, light, view),
     bounds,
     rooms,
   };
@@ -307,10 +317,32 @@ function fallbackFinish(): Finish {
   return { id: 'paint', label: '塗装', color: '#e8e4dc', roughness: 0.9, phrase: 'matte painted wall' };
 }
 
-/** いちばん大きい窓の外から光を入れる。窓が無ければ建物の斜め上から */
-function sunFor(windows: WindowLight[], b: Bounds, key: LightKey): SunSpec {
+/**
+ * 光をどの開口から入れるか。
+ * 建築写真では「その構図に光が入って見える」ことが効くので、
+ * いま見えている窓を優先し、無ければいちばん大きい窓を使う。
+ */
+function pickWindow(windows: WindowLight[], view?: ViewHint): WindowLight | undefined {
+  const byArea = [...windows].sort((p, q) => q.width * q.height - p.width * p.height);
+  if (!view) return byArea[0];
+  const dx = view.target[0] - view.position[0];
+  const dz = view.target[2] - view.position[2];
+  const dl = Math.hypot(dx, dz) || 1;
+  const inFrame = byArea.filter((w) => {
+    const vx = w.position[0] - view.position[0];
+    const vz = w.position[2] - view.position[2];
+    const vl = Math.hypot(vx, vz);
+    if (vl < 0.3) return false;
+    // 水平画角のおおよそ半分（±40度）に入っているか
+    return (vx * dx + vz * dz) / (vl * dl) > 0.77;
+  });
+  return inFrame[0] ?? byArea[0];
+}
+
+/** 選んだ窓の外から光を入れる。窓が無ければ建物の斜め上から */
+function sunFor(windows: WindowLight[], b: Bounds, key: LightKey, view?: ViewHint): SunSpec {
   const s = SUN_SETTING[key];
-  const best = [...windows].sort((p, q) => q.width * q.height - p.width * p.height)[0];
+  const best = pickWindow(windows, view);
   // 室内向き法線の逆＝外向き
   let dx = 0.6;
   let dz = 0.8;

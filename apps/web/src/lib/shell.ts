@@ -263,16 +263,34 @@ function buildOpening(
   }
 
   if (o.kind === 'door' || o.kind === 'entrance') {
-    const leafW = Math.min(ow, 0.95);
     const leafH = Math.min(oh, H - 0.02);
     const slab = o.kind === 'entrance' ? TRIM.timberDark : TRIM.door;
-    // 開いた状態にせず、片側に寄せて引き込んだ引き戸として見せる
-    const offset = ow > leafW + 0.05 ? -(ow / 2 - leafW / 2) : 0;
-    push(boxWorldUV(leafW, leafH, 0.035), slab,
-      base.clone().multiply(mat4(o.cx + offset, o.sill + leafH / 2, th * 0.2)));
-    push(boxWorldUV(0.09, 0.02, 0.02), TRIM.handle,
-      base.clone().multiply(mat4(o.cx + offset + leafW * 0.36, o.sill + leafH * 0.45, th * 0.2 + 0.028)));
-    // 敷居・鴨居
+    // 建具は開けた状態で置く。閉めたままだと光も視線も通らず、部屋の見え方が分からない
+    if (ow > 1.05) {
+      // 引き戸: 片側に引き込み、半分ほどを開ける
+      const leafW = Math.min(ow * 0.55, 1.0);
+      const x = o.cx - ow / 2 + leafW / 2;
+      push(boxWorldUV(leafW, leafH, 0.033), slab,
+        base.clone().multiply(mat4(x, o.sill + leafH / 2, th * 0.22)));
+      push(boxWorldUV(0.09, 0.02, 0.02), TRIM.handle,
+        base.clone().multiply(mat4(x + leafW * 0.34, o.sill + leafH * 0.45, th * 0.22 + 0.027)));
+    } else {
+      // 開き戸: 丁番を軸に開く
+      const leafW = Math.min(ow - 0.03, 0.95);
+      const hinge = o.cx - ow / 2 + 0.02;
+      const open = 1.32; // 約75度
+      const leaf = base
+        .clone()
+        .multiply(mat4(hinge, o.sill + leafH / 2, 0, open))
+        .multiply(mat4(leafW / 2, 0, 0));
+      push(boxWorldUV(leafW, leafH, 0.033), slab, leaf);
+      push(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 8), TRIM.handle,
+        base
+          .clone()
+          .multiply(mat4(hinge, o.sill + leafH * 0.45, 0, open))
+          .multiply(mat4(leafW - 0.07, 0, 0.03, 0, Math.PI / 2)));
+    }
+    // 敷居
     push(boxWorldUV(ow, 0.022, th * 1.2), TRIM.timber, base.clone().multiply(mat4(o.cx, o.sill + 0.011, 0)));
   }
 }
