@@ -63,6 +63,7 @@ export default function SurveyPage() {
 
   return (
     <div className="fullpane">
+      <h1 className="sr-only">現況調査報告書</h1>
       <div className="surveybar">
         <Link href="/app/editor" className="hb-btn hb-outline">間取りを直す</Link>
         <Link href="/app/checklist" className="hb-btn hb-outline">
