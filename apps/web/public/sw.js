@@ -6,18 +6,74 @@
  * 置き場所（basePath）は自分の登録位置から拾うので、公開先が変わっても直さなくていい。
  */
 
-const VERSION = 'hiraku-2026-08-22-1';
+const VERSION = 'hiraku-2026-08-22-2';
 const SHELL = `${VERSION}-shell`;
 const ASSETS = `${VERSION}-assets`;
 const PAGES = `${VERSION}-pages`;
 const SCOPE = new URL(self.registration.scope);
 
+/**
+ * 現地で使う画面は、行く前に手元へ入れておく。
+ * 内見チェックは電波の弱いところで開くことが前提なので、訪問前の下見だけで揃うようにする。
+ */
+const PRECACHE = [
+  '',
+  'app/',
+  'app/checklist/',
+  'app/editor/',
+  'app/survey/',
+  'app/quote/',
+];
+
+/** ページ1枚と、それが呼ぶ部品まで一緒に手元へ入れる */
+async function precachePage(shell, assets, path) {
+  const url = `${SCOPE.pathname}${path}`;
+  let res;
+  try {
+    res = await fetch(url, { cache: 'reload' });
+  } catch {
+    return;
+  }
+  if (!res || !res.ok) return;
+  const copy = res.clone();
+  await shell.put(url, res);
+
+  // HTMLが呼んでいるスクリプトと様式も一緒に。これが無いと開いても白紙になる
+  let html = '';
+  try {
+    html = await copy.text();
+  } catch {
+    return;
+  }
+  const refs = new Set();
+  for (const m of html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g)) {
+    try {
+      const u = new URL(m[1], url);
+      if (u.origin === self.location.origin) refs.add(u.href);
+    } catch {
+      /* 読めないURLは飛ばす */
+    }
+  }
+  await Promise.all(
+    [...refs].map(async (u) => {
+      if (await assets.match(u)) return;
+      try {
+        await assets.add(u);
+      } catch {
+        /* 1つ落ちても他は残す */
+      }
+    }),
+  );
+}
+
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(SHELL).then((c) =>
-      // 入口だけは先に持っておく。ここが開ければ、あとは中で完結する
-      c.addAll([SCOPE.pathname, `${SCOPE.pathname}app/`]).catch(() => undefined),
-    ),
+    (async () => {
+      const shell = await caches.open(SHELL);
+      const assets = await caches.open(ASSETS);
+      // 直列に入れる。共通の部品が二度落ちてこないように
+      for (const p of PRECACHE) await precachePage(shell, assets, p);
+    })(),
   );
   self.skipWaiting();
 });
@@ -71,6 +127,10 @@ async function pageFirst(req) {
   } catch {
     const hit = (await cache.match(req)) || (await caches.match(req, { ignoreSearch: true }));
     if (hit) return hit;
+    // 末尾のスラッシュ有無で取り違えないように、正規化して探し直す
+    const alt = req.url.endsWith('/') ? req.url.slice(0, -1) : `${req.url}/`;
+    const altHit = await caches.match(alt, { ignoreSearch: true });
+    if (altHit) return altHit;
     const shell = await caches.open(SHELL);
     return (
       (await shell.match(`${SCOPE.pathname}app/`)) ||
