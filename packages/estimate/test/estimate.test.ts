@@ -73,3 +73,35 @@ describe('estimatePlan', () => {
     expect(est.issues.some((i) => i.level === 'error')).toBe(true);
   });
 });
+
+describe('単価帳（CSV取り込み）', () => {
+  it('テンプレCSVを往復で解析できる', async () => {
+    const { parsePriceCsv, priceTemplateCsv } = await import('../src/index');
+    const { book, errors } = parsePriceCsv(priceTemplateCsv());
+    expect(errors).toHaveLength(0);
+    expect(Object.keys(book).length).toBe(WORK_ITEMS.length);
+  });
+
+  it('未知IDと不正な単価はエラーとして返る', async () => {
+    const { parsePriceCsv } = await import('../src/index');
+    const { book, errors } = parsePriceCsv(
+      'id,name,low,high,source\nnope,"x",100,200,\nflooring,"床",900,100,\nflooring,"床",3500,"9,000",自社積算',
+    );
+    expect(errors).toHaveLength(2);
+    expect(book['flooring']).toEqual({ id: 'flooring', low: 3500, high: 9000, source: '自社積算' });
+  });
+
+  it('取り込んだ単価が見積に反映され、verifiedになる', async () => {
+    const { parsePriceCsv, estimatePlan } = await import('../src/index');
+    const model = load();
+    const rooms = detectRooms(model.levels[0]!);
+    const r = rooms.find((x) => x.name === '和室A')!;
+    const base = estimatePlan(model, [{ op: 'change_floor', roomId: r.id, finishId: 'flooring' }]);
+    expect(base.lines[0]!.verified).toBe(false);
+
+    const { book } = parsePriceCsv('flooring,床,10000,10000,自社積算');
+    const withBook = estimatePlan(model, [{ op: 'change_floor', roomId: r.id, finishId: 'flooring' }], book);
+    expect(withBook.lines[0]!.verified).toBe(true);
+    expect(withBook.lines[0]!.lowYen).toBe(Math.round((12.42 * 10000) / 100) * 100);
+  });
+});

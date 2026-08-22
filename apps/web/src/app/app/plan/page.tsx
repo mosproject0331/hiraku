@@ -47,8 +47,9 @@ function opLabel(op: RenovationOp, model: SpaceModel): string {
 
 function PlanCard({ plan, model }: { plan: HearingPlan; model: SpaceModel }) {
   const router = useRouter();
-  const est: PlanEstimate = estimatePlan(model, plan.ops);
+  const est: PlanEstimate = estimatePlan(model, plan.ops, useEditor.getState().priceBook);
   const warnings = est.lines.filter((l) => l.structuralWarning);
+  const unverified = est.lines.some((l) => !l.verified);
   return (
     <div className="rounded-lg border border-slate-300 bg-white p-4">
       <div className="text-lg font-bold">{plan.name}</div>
@@ -68,11 +69,11 @@ function PlanCard({ plan, model }: { plan: HearingPlan; model: SpaceModel }) {
 
       <div className="mt-3 grid gap-1 rounded bg-slate-50 p-3 text-sm">
         <div className="flex justify-between">
-          <span>(a) DIY材料費<span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-800">参考値・要検証</span></span>
+          <span>(a) DIY材料費{unverified && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-800">参考値・要検証</span>}</span>
           <b>{yen(est.diyMaterial.lowYen)}〜{yen(est.diyMaterial.highYen)}円</b>
         </div>
         <div className="flex justify-between">
-          <span>(b) 専門・有資格工事の材料費<span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-800">参考値・要検証</span></span>
+          <span>(b) 専門・有資格工事の材料費{unverified && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-800">参考値・要検証</span>}</span>
           <b>{yen(est.proMaterial.lowYen)}〜{yen(est.proMaterial.highYen)}円</b>
         </div>
         <div className="text-xs text-slate-500">(b)の施工費は含みません(要見積)。総額の一本値は出しません。</div>

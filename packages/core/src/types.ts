@@ -41,6 +41,24 @@ export interface NameHint {
   name: string;
 }
 
+/** 図面の下絵（動画のコマ・間取り図の写真など）。図面座標系(mm)に配置する */
+export interface Backdrop {
+  /** 画像URL（/api/media/... または data:） */
+  src: string;
+  /** 画像左上の位置（図面座標, mm） */
+  x: number;
+  y: number;
+  /** 画像1ピクセルあたりの実寸(mm)。実寸合わせで決まる */
+  mmPerPx: number;
+  /** 表示の不透明度 0–1 */
+  opacity: number;
+  /** 回転（度）。画像左上を中心に回す */
+  rotation: number;
+  /** 元画像のピクセル寸法（表示サイズの計算に使う） */
+  pxWidth: number;
+  pxHeight: number;
+}
+
 export interface Level {
   id: string;
   name: string;
@@ -51,6 +69,8 @@ export interface Level {
   rooms: Room[];
   /** 拡張: サンプル・recon出力が部屋名の位置ヒントを運ぶ(ASSUMPTIONS参照) */
   nameHints?: NameHint[];
+  /** 拡張: なぞるための下絵 */
+  backdrop?: Backdrop;
 }
 
 export interface SpaceModel {

@@ -8,3 +8,4 @@ __pycache__/
 .DS_Store
 workers/recon/tests/_data/
 workers/recon/fixtures/
+.data/media/

@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   deserialize,
   dist,
@@ -15,7 +15,8 @@ import {
 import sampleRaw from '@hiraku/core/fixtures/sample-minka.json';
 import PlanCanvas from '@/components/PlanCanvas';
 import { CONF_COLOR, CONF_LABEL, OPENING_LABEL } from '@/lib/colors';
-import { suggestNextMeasurements } from '@hiraku/core';
+import { backdropSizeMm, suggestNextMeasurements } from '@hiraku/core';
+import BackdropLoader from '@/components/BackdropLoader';
 import { useEditor, type Tool } from '@/lib/store';
 
 const Preview3D = dynamic(() => import('@/components/Preview3D'), { ssr: false });
@@ -26,6 +27,11 @@ const TOOLS: { id: Tool; label: string }[] = [
   { id: 'opening', label: '開口' },
   { id: 'pin', label: '劣化ピン' },
   { id: 'delete', label: '削除' },
+];
+
+const TRACE_TOOLS: { id: Tool; label: string }[] = [
+  { id: 'backdrop', label: '下絵を動かす' },
+  { id: 'calibrate', label: '実寸合わせ' },
 ];
 
 const PIN_CATEGORIES = ['雨漏り', '腐朽', '蟻害', '傾き', '設備', 'その他'] as const;
@@ -41,6 +47,10 @@ export default function EditorPage() {
   const future = useEditor((s) => s.future);
   const { setTool, setOpeningKind, loadModel, mutate, undo, redo, select } = useEditor.getState();
   const fileRef = useRef<HTMLInputElement>(null);
+  const fitRef = useRef<(() => void) | null>(null);
+  const onFitReady = useCallback((fit: () => void) => {
+    fitRef.current = fit;
+  }, []);
 
   const level = model.levels[0]!;
   const nodeById = new Map(level.nodes.map((n) => [n.id, n] as const));
@@ -91,6 +101,22 @@ export default function EditorPage() {
             ))}
           </select>
         )}
+        {level.backdrop && (
+          <div className="hb-seg">
+            {TRACE_TOOLS.map((t2) => (
+              <button key={t2.id} onClick={() => setTool(t2.id)} data-on={tool === t2.id}>
+                {t2.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {tool === 'calibrate' && (
+          <span className="hb-faint" style={{ fontSize: 12 }}>
+            {useEditor.getState().calibA
+              ? '2点目をクリックしてください'
+              : '実寸がわかる2点の、1点目をクリック'}
+          </span>
+        )}
         {tool === 'pin' && (
           <select
             value={useEditor.getState().pinCategory}
@@ -140,6 +166,7 @@ export default function EditorPage() {
         >
           グリッド吸着
         </button>
+        <button onClick={() => fitRef.current?.()} className="hb-btn hb-outline">全体を表示</button>
         <button
           onClick={() => {
             const m = estimateModule(model);
@@ -153,12 +180,14 @@ export default function EditorPage() {
           モジュール推定
         </button>
         <Link href="/app/plan" className="hb-btn hb-cta">改修の相談へ</Link>
-        <span className="ml-auto hb-faint" style={{ fontSize: 12 }}>モジュール {model.moduleMm}mm</span>
+        <span className="ml-auto hb-faint" style={{ fontSize: 12 }}>
+          ホイールで拡大縮小 ／ Option+ドラッグで移動 ／ モジュール {model.moduleMm}mm
+        </span>
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-[1fr_360px]">
         <div className="min-h-0">
-          <PlanCanvas />
+          <PlanCanvas onFitReady={onFitReady} />
         </div>
         <aside className="flex min-h-0 flex-col overflow-y-auto"
           style={{ borderLeft: '1px solid var(--border-soft)', background: 'var(--card)' }}>
@@ -181,6 +210,57 @@ export default function EditorPage() {
                 耐力壁疑い
               </span>
             </div>
+          </div>
+
+          {/* 下絵 */}
+          <div className="px-3 py-2 text-sm" style={{ borderBottom: '1px solid var(--border-soft)' }}>
+            <div className="mb-1 text-xs font-semibold hb-muted">下絵 — なぞって図面にする</div>
+            {!level.backdrop && (
+              <>
+                <p className="hb-faint" style={{ fontSize: 12, lineHeight: 1.75, marginBottom: 8 }}>
+                  室内を一周撮った動画、または間取り図の写真を読み込むと、その上をなぞって図面が描けます。
+                </p>
+                <BackdropLoader />
+              </>
+            )}
+            {level.backdrop && (
+              <div className="space-y-2">
+                <label className="block text-xs hb-muted">
+                  濃さ {Math.round(level.backdrop.opacity * 100)}%
+                  <input
+                    type="range" min={5} max={100}
+                    value={Math.round(level.backdrop.opacity * 100)}
+                    onChange={(e) => useEditor.getState().patchBackdrop({ opacity: Number(e.target.value) / 100 })}
+                    className="mt-1 w-full"
+                  />
+                </label>
+                <label className="block text-xs hb-muted">
+                  回転 {level.backdrop.rotation}°
+                  <input
+                    type="range" min={-180} max={180}
+                    value={level.backdrop.rotation}
+                    onChange={(e) => useEditor.getState().patchBackdrop({ rotation: Number(e.target.value) })}
+                    className="mt-1 w-full"
+                  />
+                </label>
+                <div className="hb-faint" style={{ fontSize: 11.5, lineHeight: 1.7 }}>
+                  図面上の幅 {(backdropSizeMm(level.backdrop).widthMm / 1000).toFixed(2)}m
+                  {' / '}1px = {level.backdrop.mmPerPx.toFixed(1)}mm
+                </div>
+                <p className="hb-warn" style={{ fontSize: 11.5 }}>
+                  「実寸合わせ」で、長さのわかる2点（柱の間隔、畳の長辺など）を指定すると縮尺が決まります。
+                </p>
+                <div className="flex gap-2">
+                  <BackdropLoader compact />
+                  <button
+                    onClick={() => { useEditor.getState().setBackdrop(undefined); setTool('select'); }}
+                    className="hb-btn hb-outline"
+                  >
+                    外す
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 選択中の要素 */}

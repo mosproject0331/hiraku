@@ -33,6 +33,11 @@ const CARDS = [
   },
 ] as const;
 
+const TOOLS = [
+  { href: '/app/prices', title: '単価データ', body: '自分の積算単価をCSVで取り込み、見積を実データに置き換えます。' },
+  { href: '/app/rules', title: 'ルールのレビュー', body: '法規制25本の文面を並べて確認・印刷できます。' },
+] as const;
+
 export default function AppHome() {
   return (
     <div style={{ minHeight: '100vh' }}>
@@ -69,6 +74,18 @@ export default function AppHome() {
               <span className="hb-faint" style={{ paddingTop: 2 }}>→</span>
             </Link>
           ))}
+        </div>
+
+        <div style={{ marginTop: 36 }}>
+          <p className="hb-muted" style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 10 }}>設定・調整</p>
+          <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))' }}>
+            {TOOLS.map((c) => (
+              <Link key={c.href} href={c.href} className="hb-sunken" style={{ padding: '14px 16px', display: 'block' }}>
+                <span style={{ display: 'block', fontWeight: 600, fontSize: 14 }}>{c.title}</span>
+                <span className="hb-muted" style={{ display: 'block', marginTop: 4, fontSize: 12.5, lineHeight: 1.8 }}>{c.body}</span>
+              </Link>
+            ))}
+          </div>
         </div>
 
         <p className="hb-faint" style={{ marginTop: 32, fontSize: 11.5, lineHeight: 1.9, borderTop: '1px solid var(--border-soft)', paddingTop: 20 }}>

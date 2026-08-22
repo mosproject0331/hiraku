@@ -1,0 +1,102 @@
+/**
+ * 動画からコマを取り出す（ブラウザ内で完結。ffmpeg不要）。
+ * iPhoneのmov/mp4はブラウザがそのままデコードできるので、
+ * サーバーに大きな動画を送らずに済む。
+ */
+export interface ExtractedFrame {
+  /** 表示用の blob URL */
+  url: string;
+  blob: Blob;
+  timeSec: number;
+}
+
+export async function extractFrames(
+  file: File,
+  count = 12,
+  maxEdge = 1600,
+  onProgress?: (done: number, total: number) => void,
+): Promise<ExtractedFrame[]> {
+  const url = URL.createObjectURL(file);
+  const video = document.createElement('video');
+  video.preload = 'auto';
+  video.muted = true;
+  video.playsInline = true;
+  video.src = url;
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const to = setTimeout(() => reject(new Error('動画を読み込めませんでした（形式が対応していない可能性があります）')), 20000);
+      video.onloadedmetadata = () => {
+        clearTimeout(to);
+        resolve();
+      };
+      video.onerror = () => {
+        clearTimeout(to);
+        reject(new Error('動画を読み込めませんでした（形式が対応していない可能性があります）'));
+      };
+    });
+
+    const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+    if (!duration) throw new Error('動画の長さを取得できませんでした');
+
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (!vw || !vh) throw new Error('動画の解像度を取得できませんでした');
+    const scale = Math.min(1, maxEdge / Math.max(vw, vh));
+    const cw = Math.round(vw * scale);
+    const ch = Math.round(vh * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = cw;
+    canvas.height = ch;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas を使えませんでした');
+
+    const frames: ExtractedFrame[] = [];
+    for (let i = 0; i < count; i++) {
+      // 先頭と末尾は避ける（暗転・ブレが多い）
+      const t = duration * ((i + 0.5) / count);
+      await seek(video, t);
+      ctx.drawImage(video, 0, 0, cw, ch);
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.86));
+      if (blob) frames.push({ url: URL.createObjectURL(blob), blob, timeSec: t });
+      onProgress?.(i + 1, count);
+    }
+    return frames;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function seek(video: HTMLVideoElement, t: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const to = setTimeout(() => reject(new Error('コマの取り出しに時間がかかりすぎました')), 15000);
+    const done = () => {
+      clearTimeout(to);
+      video.removeEventListener('seeked', done);
+      // デコード完了を1フレーム待つ
+      requestAnimationFrame(() => resolve());
+    };
+    video.addEventListener('seeked', done);
+    video.currentTime = Math.max(0, t);
+  });
+}
+
+/** 画像ファイル or Blob をサーバーに保存して、永続URLをもらう */
+export async function persistImage(blob: Blob, filename = 'frame.jpg'): Promise<string> {
+  const fd = new FormData();
+  fd.append('file', new File([blob], filename, { type: blob.type || 'image/jpeg' }));
+  const res = await fetch('/api/media', { method: 'POST', body: fd });
+  const data = (await res.json()) as { frames?: string[]; error?: string };
+  if (!res.ok || !data.frames?.[0]) throw new Error(data.error ?? '保存できませんでした');
+  return data.frames[0];
+}
+
+export async function imageSize(src: string): Promise<{ w: number; h: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => reject(new Error('画像を開けませんでした'));
+    img.src = src;
+  });
+}

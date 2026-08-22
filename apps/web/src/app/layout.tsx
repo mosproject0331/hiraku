@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'HIRAKU — 動画一本で、空き家の可能性がわかる',
+  title: 'HIRAKU — 動画一本から、空き家の可能性を確かめる',
   description:
-    '動画から間取りを起こし、法規制を診断し、改修費の見当までつける。空き家活用のためのAIツール。',
+    '動画や写真を下絵に間取りを起こし、法規制を診断し、改修費の見当までつける。空き家活用のためのAIツール。',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

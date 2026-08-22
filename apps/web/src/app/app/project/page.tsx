@@ -260,7 +260,7 @@ export default function ProjectPage() {
             )}
             <div className="grid gap-4 lg:grid-cols-3">
               {(s.lastPlans ?? []).map((p) => {
-                const est = estimatePlan(s.model, p.ops);
+                const est = estimatePlan(s.model, p.ops, s.priceBook);
                 return (
                   <div key={p.name} className="rounded-lg border border-slate-300 bg-white p-4 text-sm">
                     <div className="font-bold">{p.name}</div>

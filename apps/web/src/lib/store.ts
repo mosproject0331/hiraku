@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
+  calibrateBackdrop,
   deserialize,
   detectRooms,
   serialize,
   solveConstraints,
+  type Backdrop,
   type DamagePin,
   type Measurement,
   type Opening,
@@ -14,8 +16,9 @@ import {
 } from '@hiraku/core';
 import type { DiagnosisInput, DiagnosisReport } from '@hiraku/rules';
 import type { HearingPlan } from '@hiraku/llm';
+import type { PriceBook } from '@hiraku/estimate';
 
-export type Tool = 'select' | 'wall' | 'opening' | 'delete' | 'pin';
+export type Tool = 'select' | 'wall' | 'opening' | 'delete' | 'pin' | 'backdrop' | 'calibrate';
 export type Selected = { kind: 'node' | 'wall' | 'opening' | 'pin'; id: string } | null;
 
 export function emptyModel(): SpaceModel {
@@ -40,12 +43,15 @@ interface EditorState {
   damagePins: DamagePin[];
   surveyNotes: string;
   pinCategory: DamagePin['category'];
+  /** 実寸合わせの1点目（図面座標mm）。2点目のクリックで確定 */
+  calibA: { x: number; y: number } | null;
   projectId: string | null;
   projectName: string;
   regionPackId: string | undefined;
   lastDiagnosis: { input: DiagnosisInput; report: DiagnosisReport } | null;
   lastPlans: HearingPlan[] | null;
   todoDone: Record<string, boolean>;
+  priceBook: PriceBook;
   tool: Tool;
   openingKind: Opening['kind'];
   selected: Selected;
@@ -69,11 +75,16 @@ interface EditorState {
   addPin: (x: number, y: number) => string;
   updatePin: (id: string, patch: Partial<DamagePin>) => void;
   removePin: (id: string) => void;
+  setBackdrop: (b: Backdrop | undefined) => void;
+  patchBackdrop: (patch: Partial<Backdrop>) => void;
+  setCalibA: (p: { x: number; y: number } | null) => void;
+  applyCalibration: (p2: { x: number; y: number }, realMm: number) => void;
   setProjectName: (s: string) => void;
   setRegionPackId: (s: string | undefined) => void;
   setDiagnosis: (input: DiagnosisInput, report: DiagnosisReport) => void;
   setPlans: (p: HearingPlan[]) => void;
   toggleTodo: (key: string) => void;
+  setPriceBook: (b: PriceBook) => void;
   toProject: () => Project;
   hydrateProject: (p: Project) => void;
 }
@@ -92,12 +103,14 @@ export const useEditor = create<EditorState>()(
   damagePins: [],
   surveyNotes: '',
   pinCategory: '雨漏り',
+  calibA: null,
   projectId: null,
   projectName: '',
   regionPackId: undefined,
   lastDiagnosis: null,
   lastPlans: null,
   todoDone: {},
+  priceBook: {},
   selected: null,
   pendingNodeId: null,
   history: [],
@@ -159,11 +172,36 @@ export const useEditor = create<EditorState>()(
   removePin: (id) => {
     set({ damagePins: get().damagePins.filter((p) => p.id !== id), selected: null });
   },
+  setBackdrop: (b) => {
+    get().mutate((m) => {
+      m.levels[0]!.backdrop = b;
+    });
+  },
+  patchBackdrop: (patch) => {
+    get().mutate(
+      (m) => {
+        const b = m.levels[0]!.backdrop;
+        if (b) m.levels[0]!.backdrop = { ...b, ...patch };
+      },
+      { skipHistory: true },
+    );
+  },
+  setCalibA: (calibA) => set({ calibA }),
+  applyCalibration: (p2, realMm) => {
+    const { calibA } = get();
+    if (!calibA) return;
+    get().mutate((m) => {
+      const b = m.levels[0]!.backdrop;
+      if (b) m.levels[0]!.backdrop = calibrateBackdrop(b, calibA, p2, realMm);
+    });
+    set({ calibA: null });
+  },
   setProjectName: (projectName) => set({ projectName }),
   setRegionPackId: (regionPackId) => set({ regionPackId }),
   setDiagnosis: (input, report) => set({ lastDiagnosis: { input, report } }),
   setPlans: (lastPlans) => set({ lastPlans }),
   toggleTodo: (key) => set({ todoDone: { ...get().todoDone, [key]: !get().todoDone[key] } }),
+  setPriceBook: (priceBook) => set({ priceBook }),
   toProject: () => {
     const s = get();
     const now = new Date().toISOString();
@@ -250,6 +288,7 @@ export const useEditor = create<EditorState>()(
         lastDiagnosis: s.lastDiagnosis,
         lastPlans: s.lastPlans,
         todoDone: s.todoDone,
+        priceBook: s.priceBook,
       }),
     },
   ),

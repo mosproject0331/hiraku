@@ -12,3 +12,4 @@ export { validateOps, applyOps, splitWallAt } from './ops';
 export type { OpIssue } from './ops';
 export { solveConstraints, suggestNextMeasurements } from './measure';
 export type { MeasureSuggestion } from './measure';
+export { initialBackdrop, calibrateBackdrop, backdropSizeMm } from './backdrop';

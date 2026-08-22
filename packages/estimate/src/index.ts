@@ -8,8 +8,11 @@ import {
   type SpaceModel,
 } from '@hiraku/core';
 import { DIY_CLASS_LABEL, WORK_ITEM_BY_ID, WORK_ITEMS, type DiyClass, type WorkItem } from './data/work-items';
+import { applyPriceBook, type PriceBook } from './overrides';
 
 export { DIY_CLASS_LABEL, WORK_ITEMS, WORK_ITEM_BY_ID };
+export { parsePriceCsv, priceTemplateCsv, applyPriceBook } from './overrides';
+export type { PriceBook, PriceOverride } from './overrides';
 export type { DiyClass, WorkItem };
 
 export interface EstimateLine {
@@ -24,6 +27,8 @@ export interface EstimateLine {
   requiredLicense?: string;
   permitNote?: string;
   steps: string[];
+  /** 単価が実データで裏付けられているか（false=参考値・要検証） */
+  verified: boolean;
   structuralWarning?: string;
   note?: string;
 }
@@ -45,8 +50,9 @@ function line(
   itemId: string,
   qty: number,
   extras?: Partial<Pick<EstimateLine, 'structuralWarning' | 'note'>>,
+  book?: Map<string, WorkItem>,
 ): EstimateLine {
-  const w = WORK_ITEM_BY_ID.get(itemId);
+  const w = book?.get(itemId) ?? WORK_ITEM_BY_ID.get(itemId);
   if (!w) throw new Error('unknown work item: ' + itemId);
   const q = Math.max(qty, 0);
   return {
@@ -61,6 +67,7 @@ function line(
     requiredLicense: w.requiredLicense,
     permitNote: w.permitNote,
     steps: w.steps,
+    verified: Boolean(w.materialUnitPrice.verified),
     ...extras,
   };
 }
@@ -87,7 +94,14 @@ const WATER_UNIT: Record<string, string> = {
 };
 
 /** Op列から見積を組み立てる。§2-5: 総額の一本値は出さない。常にレンジ */
-export function estimatePlan(model: SpaceModel, ops: RenovationOp[]): PlanEstimate {
+export function estimatePlan(
+  model: SpaceModel,
+  ops: RenovationOp[],
+  priceBook?: PriceBook,
+): PlanEstimate {
+  const items = applyPriceBook(priceBook);
+  const book = new Map(items.map((w) => [w.id, w] as const));
+  const L = (id: string, qty: number, extras?: Parameters<typeof line>[2]) => line(id, qty, extras, book);
   const issues = validateOps(model, ops);
   const warnByIndex = new Map<number, string>();
   for (const i of issues) if (i.level === 'warning') warnByIndex.set(i.index, i.message);
@@ -102,60 +116,60 @@ export function estimatePlan(model: SpaceModel, ops: RenovationOp[]): PlanEstima
     switch (op.op) {
       case 'remove_partition': {
         const w = t.walls.find((x) => x.wallId === op.wallId);
-        lines.push(line('demo-partition', w?.areaM2 ?? 0, { structuralWarning: warn }));
+        lines.push(L('demo-partition', w?.areaM2 ?? 0, { structuralWarning: warn }));
         break;
       }
       case 'add_partition': {
         const lenM = Math.hypot(op.a.x - op.b.x, op.a.y - op.b.y) / 1000;
         const h = (model.levels[0]?.heightMm ?? 2400) / 1000;
-        lines.push(line('carp-partition', Math.round(lenM * h * 100) / 100));
+        lines.push(L('carp-partition', Math.round(lenM * h * 100) / 100));
         break;
       }
       case 'add_opening':
-        lines.push(line('carp-opening', 1, { structuralWarning: warn }));
+        lines.push(L('carp-opening', 1, { structuralWarning: warn }));
         break;
       case 'close_opening':
-        lines.push(line('carp-close-opening', 1));
+        lines.push(L('carp-close-opening', 1));
         break;
       case 'change_floor': {
         const item = FLOOR_FINISH[op.finishId];
         if (!item) break;
         const area = roomAreaM2(model, op.roomId);
         const qty = op.finishId === 'tatami_omote' ? Math.ceil(area / 1.62) : area;
-        lines.push(line(item, qty));
+        lines.push(L(item, qty));
         break;
       }
       case 'change_wall_finish': {
         const item = WALL_FINISH[op.finishId];
         if (!item) break;
-        lines.push(line(item, roomWallAreaM2(model, op.roomId)));
+        lines.push(L(item, roomWallAreaM2(model, op.roomId)));
         break;
       }
       case 'change_ceiling': {
         const item = CEILING_FINISH[op.finishId];
         if (!item) break;
-        lines.push(line(item, roomAreaM2(model, op.roomId)));
+        lines.push(L(item, roomAreaM2(model, op.roomId)));
         break;
       }
       case 'add_water_unit': {
         const item = WATER_UNIT[op.unit];
         if (!item) break;
-        lines.push(line(item, 1, { note: '給排水経路: ' + op.routeNote }));
-        lines.push(line('haisui-koshin', 1, { note: '経路により変動。指定工事店の見積が必要' }));
+        lines.push(L(item, 1, { note: '給排水経路: ' + op.routeNote }));
+        lines.push(L('haisui-koshin', 1, { note: '経路により変動。指定工事店の見積が必要' }));
         break;
       }
       case 'insulate': {
         if (op.target === 'window_inner') {
-          lines.push(line('window_inner', 1));
+          lines.push(L('window_inner', 1));
         } else {
           const area = op.roomId ? roomAreaM2(model, op.roomId) : t.totalFloorM2;
-          lines.push(line(op.target === 'floor' ? 'insulate-floor' : 'insulate-ceiling', area));
+          lines.push(L(op.target === 'floor' ? 'insulate-floor' : 'insulate-ceiling', area));
         }
         break;
       }
       case 'electrical': {
         const item = op.work === 'add_outlet' ? 'outlet' : op.work === 'add_circuit' ? 'circuit' : 'lighting_diy';
-        lines.push(line(item, op.count));
+        lines.push(L(item, op.count));
         break;
       }
     }

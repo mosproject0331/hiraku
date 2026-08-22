@@ -18,31 +18,69 @@ import { freshId, useEditor } from '@/lib/store';
 const NODE_R = 70;
 const SNAP_EXISTING = 300;
 
-export default function PlanCanvas() {
+export default function PlanCanvas({ onFitReady }: { onFitReady?: (fit: () => void) => void }) {
   const model = useEditor((s) => s.model);
   const tool = useEditor((s) => s.tool);
   const openingKind = useEditor((s) => s.openingKind);
   const selected = useEditor((s) => s.selected);
   const pendingNodeId = useEditor((s) => s.pendingNodeId);
   useEditor((s) => s.damagePins);
+  const calibA = useEditor((s) => s.calibA);
   const { mutate, checkpoint, select, setPending, undo, redo } = useEditor.getState();
 
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [backdropDrag, setBackdropDrag] = useState<{ ox: number; oy: number } | null>(null);
   const dragMoved = useRef(false);
 
   const level: Level = model.levels[0]!;
   const nodeById = new Map(level.nodes.map((n) => [n.id, n] as const));
 
-  // 表示範囲
-  const xs = level.nodes.map((n) => n.x);
-  const ys = level.nodes.map((n) => n.y);
-  const minX = xs.length ? Math.min(...xs) : 0;
-  const maxX = xs.length ? Math.max(...xs) : 10920;
-  const minY = ys.length ? Math.min(...ys) : 0;
-  const maxY = ys.length ? Math.max(...ys) : 7280;
-  const M = 1600;
-  const vb = `${minX - M} ${minY - M} ${maxX - minX + 2 * M} ${maxY - minY + 2 * M}`;
+  // 表示範囲: 明示的なビュー状態。描画中に勝手に動かない
+  const contentBounds = useCallback((): { x: number; y: number; w: number; h: number } => {
+    const xs: number[] = level.nodes.map((n) => n.x);
+    const ys: number[] = level.nodes.map((n) => n.y);
+    if (level.backdrop) {
+      const b = level.backdrop;
+      xs.push(b.x, b.x + b.pxWidth * b.mmPerPx);
+      ys.push(b.y, b.y + b.pxHeight * b.mmPerPx);
+    }
+    if (!xs.length) return { x: -1600, y: -1600, w: 14120, h: 10480 };
+    const M = 1600;
+    return {
+      x: Math.min(...xs) - M,
+      y: Math.min(...ys) - M,
+      w: Math.max(...xs) - Math.min(...xs) + 2 * M,
+      h: Math.max(...ys) - Math.min(...ys) + 2 * M,
+    };
+  }, [level.nodes, level.backdrop]);
+
+  const [view, setView] = useState<{ x: number; y: number; w: number } | null>(null);
+  const [pan, setPan] = useState<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
+
+  // 初回と、モデルが差し替わったときだけ全体表示に合わせる
+  const fitKey = level.nodes.length + '|' + (level.backdrop?.src ?? '') + '|' + model.id;
+  const lastFit = useRef('');
+  useEffect(() => {
+    if (view && lastFit.current !== '' && level.nodes.length > 0) return;
+    const b = contentBounds();
+    setView({ x: b.x, y: b.y, w: b.w });
+    lastFit.current = fitKey;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model.id, level.backdrop?.src]);
+
+  const fitAll = useCallback(() => {
+    const b = contentBounds();
+    setView({ x: b.x, y: b.y, w: b.w });
+  }, [contentBounds]);
+
+  useEffect(() => {
+    onFitReady?.(fitAll);
+  }, [fitAll, onFitReady]);
+
+  const aspect = 0.62; // 高さ/幅のおよその比。ビューポートに合わせて調整される
+  const v = view ?? { x: -1600, y: -1600, w: 14120 };
+  const vb = `${v.x} ${v.y} ${v.w} ${v.w * aspect}`;
 
   const svgPoint = useCallback((e: { clientX: number; clientY: number }): XY | null => {
     const svg = svgRef.current;
@@ -138,6 +176,18 @@ export default function PlanCanvas() {
   function onBackgroundClick(e: React.MouseEvent) {
     const p = svgPoint(e);
     if (!p) return;
+    if (tool === 'calibrate') {
+      const st = useEditor.getState();
+      if (!st.calibA) {
+        st.setCalibA({ x: Math.round(p.x), y: Math.round(p.y) });
+      } else {
+        const input = window.prompt('この2点の実際の長さは何mmですか？（例: 3640）', '3640');
+        const mm = Number(input);
+        if (input !== null && mm > 0) st.applyCalibration({ x: p.x, y: p.y }, mm);
+        else st.setCalibA(null);
+      }
+      return;
+    }
     if (tool === 'pin') {
       const id = useEditor.getState().addPin(p.x, p.y);
       select({ kind: 'pin', id });
@@ -318,6 +368,26 @@ export default function PlanCanvas() {
   }
 
   function onPointerMove(e: React.PointerEvent) {
+    if (pan && view) {
+      const svg = svgRef.current;
+      const scale = svg ? view.w / svg.getBoundingClientRect().width : 1;
+      setView({
+        ...view,
+        x: pan.vx - (e.clientX - pan.sx) * scale,
+        y: pan.vy - (e.clientY - pan.sy) * scale,
+      });
+      return;
+    }
+    if (backdropDrag) {
+      const p = svgPoint(e);
+      if (p) {
+        useEditor.getState().patchBackdrop({
+          x: Math.round(p.x + backdropDrag.ox),
+          y: Math.round(p.y + backdropDrag.oy),
+        });
+      }
+      return;
+    }
     if (!dragId) return;
     const p = svgPoint(e);
     if (!p) return;
@@ -335,6 +405,14 @@ export default function PlanCanvas() {
   }
 
   function onPointerUp() {
+    if (pan) {
+      setPan(null);
+      return;
+    }
+    if (backdropDrag) {
+      setBackdropDrag(null);
+      return;
+    }
     if (!dragId) return;
     if (dragMoved.current) {
       // 人の修正は measured として尊重(§2-7)
@@ -352,15 +430,18 @@ export default function PlanCanvas() {
   // グリッド線
   const gridLines: React.ReactNode[] = [];
   const g = model.moduleMm;
-  for (let x = Math.floor((minX - M) / g) * g; x <= maxX + M; x += g) {
-    gridLines.push(
-      <line key={'gx' + x} x1={x} y1={minY - M} x2={x} y2={maxY + M} stroke="var(--border-soft)" strokeWidth={12} />,
-    );
-  }
-  for (let y = Math.floor((minY - M) / g) * g; y <= maxY + M; y += g) {
-    gridLines.push(
-      <line key={'gy' + y} x1={minX - M} y1={y} x2={maxX + M} y2={y} stroke="var(--border-soft)" strokeWidth={12} />,
-    );
+  const gx0 = Math.floor(v.x / g) * g;
+  const gx1 = v.x + v.w;
+  const gy0 = Math.floor(v.y / g) * g;
+  const gy1 = v.y + v.w * aspect;
+  const gridW = Math.max(6, v.w / 900); // ズームしても線の太さが破綻しないように
+  if ((gx1 - gx0) / g < 400) {
+    for (let x = gx0; x <= gx1; x += g) {
+      gridLines.push(<line key={'gx' + x} x1={x} y1={gy0} x2={x} y2={gy1} stroke="var(--border-soft)" strokeWidth={gridW} />);
+    }
+    for (let y = gy0; y <= gy1; y += g) {
+      gridLines.push(<line key={'gy' + y} x1={gx0} y1={y} x2={gx1} y2={y} stroke="var(--border-soft)" strokeWidth={gridW} />);
+    }
   }
 
   const faces = detectFaces(level);
@@ -374,7 +455,54 @@ export default function PlanCanvas() {
       onClick={onBackgroundClick}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onWheel={(e) => {
+        if (!view) return;
+        const p = svgPoint(e);
+        const k = e.deltaY > 0 ? 1.12 : 1 / 1.12;
+        const nw = Math.min(Math.max(view.w * k, 1200), 400000);
+        if (!p) {
+          setView({ ...view, w: nw });
+          return;
+        }
+        // カーソル位置を固定してズーム
+        const r = nw / view.w;
+        setView({ x: p.x - (p.x - view.x) * r, y: p.y - (p.y - view.y) * r, w: nw });
+      }}
+      onPointerDown={(e) => {
+        if (e.button !== 1 && !(e.button === 0 && e.altKey)) return;
+        e.preventDefault();
+        if (!view) return;
+        setPan({ sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y });
+        (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+      }}
     >
+      {/* 下絵（動画のコマ・間取り図の写真） */}
+      {level.backdrop && (
+        <g
+          transform={`translate(${level.backdrop.x} ${level.backdrop.y}) rotate(${level.backdrop.rotation})`}
+          opacity={level.backdrop.opacity}
+          style={{ pointerEvents: tool === 'backdrop' ? 'auto' : 'none' }}
+        >
+          <image
+            href={level.backdrop.src}
+            width={level.backdrop.pxWidth * level.backdrop.mmPerPx}
+            height={level.backdrop.pxHeight * level.backdrop.mmPerPx}
+            preserveAspectRatio="none"
+            className={tool === 'backdrop' ? 'cursor-move' : ''}
+            onPointerDown={(e) => {
+              if (tool !== 'backdrop') return;
+              e.stopPropagation();
+              const start = svgPoint(e);
+              const b = level.backdrop!;
+              if (!start) return;
+              checkpoint();
+              setBackdropDrag({ ox: b.x - start.x, oy: b.y - start.y });
+              (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+            }}
+          />
+        </g>
+      )}
+
       {gridLines}
 
       {/* 部屋: 面ポリゴンとラベル */}
@@ -504,6 +632,14 @@ export default function PlanCanvas() {
           </g>
         );
       })}
+
+      {/* 実寸合わせの基準点 */}
+      {calibA && (
+        <g>
+          <circle cx={calibA.x} cy={calibA.y} r={140} fill="none" stroke="#ff773c" strokeWidth={44} />
+          <circle cx={calibA.x} cy={calibA.y} r={40} fill="#ff773c" />
+        </g>
+      )}
 
       {/* ノード */}
       {level.nodes.map((n) => {

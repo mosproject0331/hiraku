@@ -53,7 +53,7 @@ export default function Landing() {
       {/*HERO*/}
       <section className="hero">
         <div className="wrap">
-          <h1>動画一本で、<br />空き家の可能性がわかる</h1>
+          <h1>動画一本から、<br />空き家の可能性を確かめる</h1>
           <p className="sub">法規制の診断、間取りと3Dの作成、改修計画と概算見積まで。<br />空き家を活かしたい人のための、確かめるための道具です。</p>
 
           <div className="prompt">
@@ -205,7 +205,7 @@ export default function Landing() {
             </div>
           </div>
           <div className="cap">
-            <span><b>撮る。</b>スマホ一台で、部屋の形が図面になる</span>
+            <span><b>撮る。</b>スマホ一台で、部屋の形をなぞって図面に</span>
             <span><b>整える。</b>910mmの物差しに合わせて図面へ</span>
             <span><b>確かめる。</b>測った箇所から順に、緑に変わる</span>
           </div>
@@ -259,8 +259,8 @@ export default function Landing() {
                 </svg>
               </div>
               <h3>間取りと3D</h3>
-              <p>スマホで撮った動画から、平面図の下書きと簡易3Dを自動生成。図面が残っていない家でも、現況の把握はここから始められます。</p>
-              <Link className="lnk" href="/app/editor">間取りをつくる<span className="ar">→</span></Link>
+              <p>スマホで撮った動画や、古い間取り図の写真を下絵にして、その上をなぞるだけ。図面が残っていない家でも、平面図と簡易3Dがその場でつくれます。</p>
+              <Link className="lnk" href="/app/editor">下絵から間取りを描く<span className="ar">→</span></Link>
             </article>
 
             <article className="pillar">
