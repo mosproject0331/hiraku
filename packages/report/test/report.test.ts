@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { reverseLookup, runDiagnosis, type DiagnosisInput } from '@hiraku/rules';
-import { renderDiagnosisReport, renderModeAReport, esc, DISCLAIMER } from '../src/index';
+import { renderDiagnosisReport, renderModeAReport, renderSurveyReport, esc, DISCLAIMER } from '../src/index';
+import type { SpaceModel } from '@hiraku/core';
+
+function emptyModel(): SpaceModel {
+  return {
+    id: 't',
+    levels: [{ id: 'L1', name: '1階', heightMm: 2400, walls: [], nodes: [], openings: [], rooms: [] }],
+    moduleMm: 910,
+    scaleFactor: 1,
+    version: 1,
+  };
+}
 
 const input: DiagnosisInput = {
   address: '兵庫県三田市<script>',
@@ -102,5 +113,29 @@ describe('地域情報セクション', async () => {
   });
   it('パック未指定なら出ない', () => {
     expect(render(base, run(base))).not.toContain('地域情報:');
+  });
+});
+
+describe('内見チェックの反映', () => {
+  it('要対応が先に並び、写真が埋め込まれる', () => {
+    const html = renderSurveyReport(emptyModel(), [], [], '', [
+      { label: '雨漏りの跡', why: '屋根補修は費用が大きい', state: 'ok', memo: '', photos: [] },
+      { label: '床下の腐朽', why: '見えない出費になりやすい', state: 'bad', memo: '北側が湿っている', photos: ['data:image/jpeg;base64,AAA'] },
+      { label: '床の傾き', why: '不同沈下のサイン', state: 'watch', memo: '', photos: [] },
+    ]);
+    const bad = html.indexOf('床下の腐朽');
+    const watch = html.indexOf('床の傾き');
+    const ok = html.indexOf('雨漏りの跡');
+    expect(bad).toBeGreaterThan(-1);
+    expect(bad).toBeLessThan(watch);
+    expect(watch).toBeLessThan(ok);
+    expect(html).toContain('要確認 2件');
+    expect(html).toContain('北側が湿っている');
+    expect(html).toContain('data:image/jpeg;base64,AAA');
+  });
+
+  it('記録が無いときは、その旨を書く', () => {
+    const html = renderSurveyReport(emptyModel(), [], [], '');
+    expect(html).toContain('内見チェックの記録はありません');
   });
 });

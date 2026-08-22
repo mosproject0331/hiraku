@@ -71,11 +71,58 @@ export function svgPlan(model: SpaceModel, pins: DamagePin[] = []): string {
   return `<svg viewBox="${minX} ${minY} ${w} ${h}" style="width:100%;max-height:480px;background:#fff;border:1px solid #e2e8f0">${walls}${labels}${pinMarks}</svg>`;
 }
 
+/** 内見チェックの結果を報告書に載せるための形 */
+export interface ChecklistReportRow {
+  label: string;
+  why: string;
+  state: 'ok' | 'watch' | 'bad';
+  memo: string;
+  /** 写真のデータURL。埋め込むとファイル1枚で渡せる */
+  photos: string[];
+}
+
+const CHECK_MARK: Record<ChecklistReportRow['state'], string> = {
+  ok: '○', watch: '△', bad: '×',
+};
+const CHECK_CLASS: Record<ChecklistReportRow['state'], string> = {
+  ok: 'v-ok', watch: 'v-hard', bad: 'v-ng',
+};
+const CHECK_WORD: Record<ChecklistReportRow['state'], string> = {
+  ok: '問題なし', watch: '気になる', bad: '要対応',
+};
+const CHECK_ORDER: Record<ChecklistReportRow['state'], number> = { bad: 0, watch: 1, ok: 2 };
+
+function checklistSection(checks: ChecklistReportRow[]): string {
+  if (!checks.length) return '<p>内見チェックの記録はありません。</p>';
+  const sorted = [...checks].sort((a, b) => CHECK_ORDER[a.state] - CHECK_ORDER[b.state]);
+  const rows = sorted
+    .map(
+      (c) =>
+        `<tr><td class="${CHECK_CLASS[c.state]}" style="text-align:center;font-weight:700">${CHECK_MARK[c.state]}</td>` +
+        `<td>${esc(c.label)}<div class="meta">${esc(c.why)}</div></td>` +
+        `<td>${esc(c.memo || '-')}</td></tr>`,
+    )
+    .join('');
+  const flagged = sorted.filter((c) => c.state !== 'ok' && c.photos.length);
+  const photos = flagged.length
+    ? flagged
+        .map(
+          (c) =>
+            `<div class="card"><b>${CHECK_MARK[c.state]} ${esc(c.label)}</b>` +
+            `<div class="meta">${esc(CHECK_WORD[c.state])}${c.memo ? ' / ' + esc(c.memo) : ''}</div>` +
+            `<div class="shots">${c.photos.map((p) => `<img src="${esc(p)}" alt="">`).join('')}</div></div>`,
+        )
+        .join('')
+    : '';
+  return `<table><thead><tr><th style="width:2.4em"></th><th>見たところ</th><th>記録</th></tr></thead><tbody>${rows}</tbody></table>${photos}`;
+}
+
 export function renderSurveyReport(
   model: SpaceModel,
   measurements: Measurement[],
   pins: DamagePin[],
   notes: string,
+  checks: ChecklistReportRow[] = [],
 ): string {
   const level = model.levels[0];
   const conf = { estimated: 0, hypothesis: 0, measured: 0 };
@@ -115,6 +162,9 @@ export function renderSurveyReport(
         ? `<table><thead><tr><th>#</th><th>分類</th><th>メモ</th><th>写真</th></tr></thead><tbody>${pinRows}</tbody></table>`
         : '<p>記録された劣化・不具合はありません。</p>'
     }
+
+    <h2>内見チェック(${checks.length}件${checks.filter((c) => c.state !== 'ok').length ? ` / 要確認 ${checks.filter((c) => c.state !== 'ok').length}件` : ''})</h2>
+    ${checklistSection(checks)}
 
     <h2>所見</h2>
     <p>${esc(notes || '(未記入)')}</p>

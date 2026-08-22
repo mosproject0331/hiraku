@@ -140,6 +140,24 @@ export interface RenovationPlan {
   createdAt: string;
 }
 
+/** 内見・現地確認の一件ごとの結果 */
+export type CheckState = 'ok' | 'watch' | 'bad';
+
+export interface CheckEntry {
+  state: CheckState;
+  memo: string;
+  /** 写真のID。実体は端末の IndexedDB に置く */
+  photos: string[];
+  /** 記録した時刻(ISO) */
+  at: string;
+}
+
+/** 現場で足した独自のチェック項目 */
+export interface CustomCheck {
+  id: string;
+  label: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -155,6 +173,10 @@ export interface Project {
   surveyNotes?: string;
   /** 拡張: 確認事項ToDoのチェック状態 */
   todoDone?: Record<string, boolean>;
+  /** 拡張: 内見チェックの結果。キーは項目のラベル */
+  checklist?: Record<string, CheckEntry>;
+  /** 拡張: 現場で足したチェック項目 */
+  customChecks?: CustomCheck[];
   createdAt: string;
   updatedAt: string;
 }

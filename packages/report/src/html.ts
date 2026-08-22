@@ -31,6 +31,8 @@ export const BASE_CSS = `
   .disclaimer { margin-top: 32px; padding: 12px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 12px; color: #475569; }
   .summary-row { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0; }
   .summary-row span { font-size: 13px; }
+  .shots { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .shots img { width: 150px; height: 112px; object-fit: cover; border-radius: 6px; border: 1px solid #cbd5e1; }
   @media print {
     body { padding: 0; font-size: 12px; }
     h2 { break-after: avoid; }

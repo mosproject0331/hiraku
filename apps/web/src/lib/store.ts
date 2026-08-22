@@ -7,6 +7,9 @@ import {
   serialize,
   solveConstraints,
   type Backdrop,
+  type CheckEntry,
+  type CheckState,
+  type CustomCheck,
   type DamagePin,
   type Measurement,
   type Opening,
@@ -14,7 +17,7 @@ import {
   type RenovationPlan,
   type SpaceModel,
 } from '@hiraku/core';
-import type { DiagnosisInput, DiagnosisReport } from '@hiraku/rules';
+import type { DesiredUse, DiagnosisInput, DiagnosisReport } from '@hiraku/rules';
 import type { HearingPlan } from '@hiraku/llm';
 import type { PriceBook } from '@hiraku/estimate';
 
@@ -51,6 +54,12 @@ interface EditorState {
   lastDiagnosis: { input: DiagnosisInput; report: DiagnosisReport } | null;
   lastPlans: HearingPlan[] | null;
   todoDone: Record<string, boolean>;
+  /** 内見チェックの結果。キーは項目のラベル */
+  checklist: Record<string, CheckEntry>;
+  /** 現場で足したチェック項目 */
+  customChecks: CustomCheck[];
+  /** 内見チェックで使う用途。診断より先に見に行くこともあるので単独で持つ */
+  checkUse: DesiredUse | null;
   priceBook: PriceBook;
   tool: Tool;
   openingKind: Opening['kind'];
@@ -84,6 +93,14 @@ interface EditorState {
   setDiagnosis: (input: DiagnosisInput, report: DiagnosisReport) => void;
   setPlans: (p: HearingPlan[]) => void;
   toggleTodo: (key: string) => void;
+  setCheck: (label: string, state: CheckState | null) => void;
+  setCheckMemo: (label: string, memo: string) => void;
+  addCheckPhoto: (label: string, photoId: string) => void;
+  removeCheckPhoto: (label: string, photoId: string) => void;
+  addCustomCheck: (label: string) => void;
+  removeCustomCheck: (id: string) => void;
+  clearChecklist: () => void;
+  setCheckUse: (u: DesiredUse | null) => void;
   setPriceBook: (b: PriceBook) => void;
   toProject: () => Project;
   hydrateProject: (p: Project) => void;
@@ -110,6 +127,9 @@ export const useEditor = create<EditorState>()(
   lastDiagnosis: null,
   lastPlans: null,
   todoDone: {},
+  checklist: {},
+  customChecks: [],
+  checkUse: null,
   priceBook: {},
   selected: null,
   pendingNodeId: null,
@@ -201,6 +221,71 @@ export const useEditor = create<EditorState>()(
   setDiagnosis: (input, report) => set({ lastDiagnosis: { input, report } }),
   setPlans: (lastPlans) => set({ lastPlans }),
   toggleTodo: (key) => set({ todoDone: { ...get().todoDone, [key]: !get().todoDone[key] } }),
+  setCheck: (label, state) => {
+    const next = { ...get().checklist };
+    if (state === null) delete next[label];
+    else {
+      const cur = next[label];
+      next[label] = {
+        state,
+        memo: cur?.memo ?? '',
+        photos: cur?.photos ?? [],
+        at: new Date().toISOString(),
+      };
+    }
+    set({ checklist: next });
+  },
+  setCheckMemo: (label, memo) => {
+    const cur = get().checklist[label];
+    set({
+      checklist: {
+        ...get().checklist,
+        [label]: {
+          state: cur?.state ?? 'watch',
+          memo,
+          photos: cur?.photos ?? [],
+          at: new Date().toISOString(),
+        },
+      },
+    });
+  },
+  addCheckPhoto: (label, photoId) => {
+    const cur = get().checklist[label];
+    set({
+      checklist: {
+        ...get().checklist,
+        [label]: {
+          state: cur?.state ?? 'watch',
+          memo: cur?.memo ?? '',
+          photos: [...(cur?.photos ?? []), photoId],
+          at: new Date().toISOString(),
+        },
+      },
+    });
+  },
+  removeCheckPhoto: (label, photoId) => {
+    const cur = get().checklist[label];
+    if (!cur) return;
+    set({
+      checklist: {
+        ...get().checklist,
+        [label]: { ...cur, photos: cur.photos.filter((p) => p !== photoId) },
+      },
+    });
+  },
+  addCustomCheck: (label) => {
+    const t = label.trim();
+    if (!t) return;
+    set({ customChecks: [...get().customChecks, { id: freshId('c'), label: t }] });
+  },
+  removeCustomCheck: (id) => {
+    const item = get().customChecks.find((c) => c.id === id);
+    const next = { ...get().checklist };
+    if (item) delete next[item.label];
+    set({ customChecks: get().customChecks.filter((c) => c.id !== id), checklist: next });
+  },
+  clearChecklist: () => set({ checklist: {}, customChecks: [] }),
+  setCheckUse: (checkUse) => set({ checkUse }),
   setPriceBook: (priceBook) => set({ priceBook }),
   toProject: () => {
     const s = get();
@@ -224,6 +309,8 @@ export const useEditor = create<EditorState>()(
       regionPackId: s.regionPackId,
       surveyNotes: s.surveyNotes,
       todoDone: s.todoDone,
+      checklist: s.checklist,
+      customChecks: s.customChecks,
       createdAt: now,
       updatedAt: now,
     };
@@ -244,6 +331,8 @@ export const useEditor = create<EditorState>()(
         ? p.plans.map((x) => ({ name: x.name, intent: x.intent, ops: x.ops }))
         : null,
       todoDone: p.todoDone ?? {},
+      checklist: p.checklist ?? {},
+      customChecks: p.customChecks ?? [],
       history: [],
       future: [],
       selected: null,
@@ -288,6 +377,9 @@ export const useEditor = create<EditorState>()(
         lastDiagnosis: s.lastDiagnosis,
         lastPlans: s.lastPlans,
         todoDone: s.todoDone,
+        checklist: s.checklist,
+        customChecks: s.customChecks,
+        checkUse: s.checkUse,
         priceBook: s.priceBook,
       }),
     },

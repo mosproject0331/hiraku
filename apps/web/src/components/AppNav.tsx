@@ -10,6 +10,7 @@ const MAIN = [
   { href: '/app/diagnose', label: '診断', hint: '法規制を確かめる' },
   { href: '/app/editor', label: '間取り', hint: '図面をつくる・測る' },
   { href: '/app/plan', label: '改修', hint: '3案と概算' },
+  { href: '/app/checklist', label: '内見', hint: '現地で見るところを記録' },
   { href: '/app/survey', label: '調査書', hint: '現況調査報告書' },
   { href: '/app/project', label: '案件', hint: '保存・ToDo・質問' },
 ] as const;
