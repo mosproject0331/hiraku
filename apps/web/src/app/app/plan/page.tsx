@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -49,7 +49,12 @@ function opLabel(op: RenovationOp, model: SpaceModel): string {
 
 function PlanCard({ plan, model }: { plan: HearingPlan; model: SpaceModel }) {
   const router = useRouter();
-  const est: PlanEstimate = estimatePlan(model, plan.ops, useEditor.getState().priceBook);
+  const priceBook = useEditor((s) => s.priceBook);
+  // 概算の計算は軽くない。間取り・案・単価が変わったときだけやり直す
+  const est: PlanEstimate = useMemo(
+    () => estimatePlan(model, plan.ops, priceBook),
+    [model, plan.ops, priceBook],
+  );
   const warnings = est.lines.filter((l) => l.structuralWarning);
   const unverified = est.lines.some((l) => !l.verified);
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   lineAmount, quoteCsv, quoteTotals, renderQuote, untouchedLines,
   type QuoteDoc, type QuoteLine, type QuoteParty, type TaxMode,
@@ -40,7 +40,9 @@ export default function QuotePage() {
   const doc = quote;
   const totals = useMemo(() => (doc ? quoteTotals(doc) : null), [doc]);
   const untouched = useMemo(() => (doc ? untouchedLines(doc) : []), [doc]);
-  const html = useMemo(() => (doc ? renderQuote(doc) : ''), [doc]);
+  // 打っている最中にA4を組み直すと重い。少し遅らせて後から追いつかせる
+  const deferred = useDeferredValue(doc);
+  const html = useMemo(() => (deferred ? renderQuote(deferred) : ''), [deferred]);
 
   if (!doc || !totals) return null;
 
