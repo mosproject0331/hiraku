@@ -1,4 +1,5 @@
 import type { RenovationOp, SpaceModel } from '@hiraku/core';
+import { estimatePlan, type PriceBook } from '@hiraku/estimate';
 import { readBuilding, wallBetween, type BuildingFacts, type RoomFact } from './read';
 import type { HearingProfile, Hands, Proposal, SiteFacts, Stage, WorkStep } from './types';
 
@@ -107,6 +108,7 @@ function troubleSteps(ctx: Ctx): WorkStep[] {
       stage: 1,
       by: 'pro',
       ops: [],
+      essential: true,
       blockedBy: ['屋根・雨樋の状態を屋根屋に見てもらう（足場の要否で金額が大きく変わる）'],
       basedOn: bad.filter((t) => (t.category + t.memo).includes('雨漏')).map((t) => `${t.where}: ${t.memo || t.category}`),
     });
@@ -273,6 +275,108 @@ function permitSteps(ctx: Ctx, strategy: Strategy): WorkStep[] {
   return out;
 }
 
+/** 近隣で気にしていることは、許可より先につまずく。だから一段目に置く */
+function neighbourSteps(ctx: Ctx): WorkStep[] {
+  const worries = ctx.p.neighbours ?? [];
+  if (!worries.length) return [];
+  const text = worries.join('・');
+  const has = (...w: string[]) => w.some((x) => text.includes(x));
+  const blocked: string[] = [];
+  if (has('音', '騒音', '声')) blocked.push('音の出る時間帯を、両隣と向かいに先に伝えて合意しておく');
+  if (has('駐車', '車', '道')) blocked.push('お客さんの車をどこに置くかを決め、近隣に示す（路上駐車は最初のつまずき）');
+  if (has('匂', '臭', '煙', '排気')) blocked.push('排気の向きと高さを、隣の窓の位置を見て決める');
+  if (!blocked.length) blocked.push(`「${text}」について、始める前に近隣と一度話す`);
+  return [
+    {
+      id: sid('neighbour'),
+      title: '近所への筋を、工事の前に通す',
+      why:
+        `${text}を気にしている。許可が下りても、ここでつまずくと続かない。` +
+        '工事の音が出る前に一度あいさつに行くのが、いちばん安い対策。',
+      stage: 1,
+      by: 'self',
+      ops: [],
+      blockedBy: blocked,
+      essential: true,
+      basedOn: [`気にしていること: ${text}`],
+    },
+  ];
+}
+
+/** 住みながらやるなら、暮らしを止めない段取りが要る */
+function liveInSteps(ctx: Ctx): WorkStep[] {
+  if (!ctx.p.liveIn) return [];
+  const quiet = ctx.quiet;
+  return [
+    {
+      id: sid('livein'),
+      title: '暮らす側と、開ける側を分ける',
+      why:
+        '住みながらだと、工事を一度に全部は止められない。' +
+        `${quiet ? roomLabel(quiet, 'quiet') + 'を暮らしの側に残し、' : ''}` +
+        '水回りを止める日を先に決めておくと、工事の順番がひとりでに決まる。',
+      stage: 1,
+      by: 'self',
+      ops: [],
+      blockedBy: ['水回りを止められる日数を決める（何日なら耐えられるか）'],
+      essential: true,
+    },
+  ];
+}
+
+/** 来る人と人数から、入口まわりに要る手 */
+function guestSteps(ctx: Ctx): WorkStep[] {
+  const out: WorkStep[] = [];
+  const entry = ctx.entry ?? ctx.front;
+  const cap = ctx.p.capacity ?? 0;
+
+  if (ctx.p.guests === 'travellers') {
+    out.push({
+      id: sid('guest'),
+      title: '荷物と靴の置き場を、入ってすぐに用意する',
+      why: '外から来る人は荷物を持っている。置き場が無いと、入口で滞る。棚ひとつで動線が変わる。',
+      stage: 2,
+      by: handsFor(ctx, 'finish'),
+      ops: entry ? [{ op: 'change_floor', roomId: entry.id, finishId: 'cushion_floor' }] : [],
+    });
+  }
+  if (ctx.p.guests === 'neighbours' && entry) {
+    out.push({
+      id: sid('guest'),
+      title: '入口を、通りから見て入れる形にする',
+      why: '近所の人は「入っていいのか」を戸の前で判断する。開けたままにできる建具と、中が見える明るさが要る。',
+      stage: 2,
+      by: 'pro',
+      ops: [],
+    });
+  }
+  if (ctx.p.guests === 'members') {
+    out.push({
+      id: sid('guest'),
+      title: '自分がいない時間の、入り方を決める',
+      why: '決まった人が使う場は、鍵の渡し方で運営の手間が決まる。工事より先に決めると、配線や建具の選び方が変わる。',
+      stage: 3,
+      by: 'self',
+      ops: [],
+    });
+  }
+
+  // 人数から、便所の数を見る
+  if (cap >= 15 && (ctx.p.use === 'cafe' || ctx.p.use === 'retail' || ctx.p.use === 'coworking')) {
+    const wet = ctx.wet;
+    out.push({
+      id: sid('guest'),
+      title: '便所をもうひとつ足す',
+      why: `${cap}人が同時にいる場だと、便所ひとつでは待ちができる。あとから足すのがいちばん高くつく設備。`,
+      stage: 1,
+      by: 'licensed',
+      ops: wet ? [{ op: 'add_water_unit', roomId: wet.id, unit: 'toilet', routeNote: '既存の排水に近い位置を想定。現地で確かめること' }] : [],
+      blockedBy: ['排水の勾配が取れる位置かを確かめる'],
+    });
+  }
+  return out;
+}
+
 /* ────────── 二段目・三段目 ────────── */
 
 function finishSteps(ctx: Ctx, strategy: Strategy): WorkStep[] {
@@ -358,6 +462,16 @@ function comfortSteps(ctx: Ctx, strategy: Strategy): WorkStep[] {
       ops: [{ op: 'insulate', target: 'floor', roomId: front.id }],
     });
   }
+  if (ctx.p.revenue === 'profit' && ctx.p.cadence === 'daily') {
+    out.push({
+      id: sid('comfort'),
+      title: '夏と冬に、開け続けられるようにする',
+      why: '生活を支える収入にするなら、季節で閉まる場所にはできない。空調と断熱は設備ではなく、営業日数の話。',
+      stage: 2,
+      by: 'pro',
+      ops: [{ op: 'insulate', target: 'ceiling' }],
+    });
+  }
   out.push({
     id: sid('comfort'),
     title: 'コンセントを増やす',
@@ -428,6 +542,7 @@ function assumptionsFor(ctx: Ctx, steps: WorkStep[]): string[] {
   const water = steps.some((s) => s.ops.some((o) => o.op === 'add_water_unit'));
   if (water) out.push('既存の給排水が使える位置にあることを前提にしている。引き回しが長いと金額が変わる');
   if (!ctx.p.budgetYen) out.push('予算の上限を聞いていない。どこで止めるかは、あとで一緒に決める');
+  else out.push(`予算${Math.round(ctx.p.budgetYen / 10000)}万に収まる形で組んである。単価が自分の数字になると、入る手の数が変わる`);
   return out;
 }
 
@@ -490,7 +605,82 @@ function becauseFor(ctx: Ctx, strategy: Strategy): string {
   return bits.join('');
 }
 
-export function buildProposals(model: SpaceModel, profile: HearingProfile, site: SiteFacts): Proposal[] {
+/** 手ひとつぶんの見込み（材料・機器のレンジ） */
+function costOf(model: SpaceModel, step: WorkStep, book?: PriceBook): { low: number; high: number } {
+  if (!step.ops.length) return { low: 0, high: 0 };
+  try {
+    const e = estimatePlan(model, step.ops, book);
+    return {
+      low: e.diyMaterial.lowYen + e.proMaterial.lowYen,
+      high: e.diyMaterial.highYen + e.proMaterial.highYen,
+    };
+  } catch {
+    return { low: 0, high: 0 };
+  }
+}
+
+/**
+ * 予算に収める。
+ *
+ * 削るのは後ろの段から。一段目（開けるために要る）と、外せない手は残す。
+ * 削ったものは黙って消さず、「今回はやらないこと」として理由つきで見せる。
+ */
+function fitToBudget(
+  model: SpaceModel,
+  steps: WorkStep[],
+  budgetYen: number | undefined,
+  book?: PriceBook,
+): { steps: WorkStep[]; fit: Proposal['fit'] } {
+  const cost = new Map(steps.map((s) => [s.id, costOf(model, s, book)] as const));
+  const sum = (list: WorkStep[]) =>
+    list.reduce(
+      (acc, s) => {
+        const c = cost.get(s.id)!;
+        return { low: acc.low + c.low, high: acc.high + c.high };
+      },
+      { low: 0, high: 0 },
+    );
+
+  if (!budgetYen || budgetYen <= 0) {
+    const t = sum(steps);
+    return { steps, fit: { lowYen: t.low, highYen: t.high, over: false, trimmed: [] } };
+  }
+
+  // 予算は「高いほう」で見る。安いほうで組むと現場で必ず足が出る
+  const keep = [...steps];
+  const trimmed: string[] = [];
+  const removable = () =>
+    keep
+      .map((s, i) => ({ s, i }))
+      .filter((x) => x.s.stage !== 1 && !x.s.essential && (cost.get(x.s.id)!.high > 0))
+      .sort((a, b) => b.s.stage - a.s.stage || cost.get(b.s.id)!.high - cost.get(a.s.id)!.high);
+
+  while (sum(keep).high > budgetYen) {
+    const cand = removable()[0];
+    if (!cand) break;
+    keep.splice(cand.i, 1);
+    trimmed.push(cand.s.title);
+  }
+
+  const total = sum(keep);
+  return {
+    steps: keep,
+    fit: {
+      lowYen: total.low,
+      highYen: total.high,
+      budgetYen,
+      over: total.high > budgetYen,
+      trimmed,
+    },
+  };
+}
+
+export function buildProposals(
+  model: SpaceModel,
+  profile: HearingProfile,
+  site: SiteFacts,
+  priceBook?: PriceBook,
+): Proposal[] {
   seq = 0;
   const b = readBuilding(model);
   const byId = new Map(b.rooms.map((r) => [r.id, r] as const));
@@ -512,25 +702,43 @@ export function buildProposals(model: SpaceModel, profile: HearingProfile, site:
   return strategies.map((strategy) => {
     const steps: WorkStep[] = [
       ...troubleSteps(ctx),
+      ...neighbourSteps(ctx),
+      ...liveInSteps(ctx),
       ...permitSteps(ctx, strategy),
+      ...guestSteps(ctx),
       ...(strategy === 'open' ? [] : [openUpStep(ctx)].filter((x): x is WorkStep => !!x)),
       ...finishSteps(ctx, strategy),
       ...comfortSteps(ctx, strategy),
     ];
-    const ordered = orderSteps(steps);
+    const { steps: fitted, fit } = fitToBudget(model, orderSteps(steps), profile.budgetYen, priceBook);
+    const ordered = orderSteps(fitted);
     const nextTwo = ordered
       .filter((s) => s.stage === 1)
       .slice(0, 2)
       .map((s) => (s.blockedBy?.[0] ? s.blockedBy[0] : s.title));
+    const notNow = notNowFor(ctx, strategy, ordered);
+    if (fit.trimmed.length) {
+      notNow.unshift(
+        `${fit.trimmed.join('・')}は、予算${Math.round((fit.budgetYen ?? 0) / 10000)}万に収めるため今回は見送る。` +
+          '順番の後ろから外しているので、開けること自体には影響しない',
+      );
+    }
+    if (fit.over) {
+      notNow.unshift(
+        `一段目（開けるために要る手）だけで予算をはみ出している。` +
+          '予算を上げるか、用途を軽い形に変えるかの二択になる',
+      );
+    }
     return {
       id: `plan-${strategy}`,
       name: STRATEGY[strategy].name,
       line: STRATEGY[strategy].line,
       because: becauseFor(ctx, strategy),
       steps: ordered,
-      notNow: notNowFor(ctx, strategy, ordered),
+      notNow,
       assumptions: assumptionsFor(ctx, ordered),
       nextTwo: nextTwo.length ? nextTwo : ordered.slice(0, 2).map((s) => s.title),
+      fit,
     };
   });
 }

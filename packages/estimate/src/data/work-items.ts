@@ -1,11 +1,56 @@
 export type DiyClass = 'diy' | 'diy_hard' | 'licensed' | 'pro_recommended' | 'permit_related';
 
+/**
+ * その数字が「何の値段」なのか。
+ *
+ * ここを混ぜると見積が壊れる。畳の表替えは材料費ではないし、
+ * 残置物の処分に材料は無い。数字より先に、種別を持たせる。
+ */
+export type PriceBasis =
+  /** 材料だけ。自分で買って自分で施工する前提 */
+  | 'material'
+  /** 機器・製品の本体価格。取り付けは別 */
+  | 'equipment'
+  /** 施工込み。業者に頼む前提の値段 */
+  | 'installed'
+  /** 手間・処分・清掃。物が残らない */
+  | 'service';
+
+export const BASIS_LABEL: Record<PriceBasis, string> = {
+  material: '材料のみ',
+  equipment: '機器の本体価格',
+  installed: '施工込み',
+  service: '手間・処分',
+};
+
+export const BASIS_NOTE: Record<PriceBasis, string> = {
+  material: '自分たちで施工する前提。手間はこの数字に入っていません',
+  equipment: '本体だけの価格。取り付け費は別に要ります',
+  installed: '業者に頼む前提の値段。手間が入っています',
+  service: '物は残りません。量と距離で大きく動きます',
+};
+
+export interface UnitPrice {
+  low: number;
+  high: number;
+  /** 何の値段か */
+  basis: PriceBasis;
+  /** どこから来た数字か */
+  source: string;
+  /** いつ時点の数字か (YYYY-MM) */
+  asOf?: string;
+  /** 出どころを確かめた数字か。自分で入れた単価は true */
+  verified: boolean;
+  /** どこの相場か */
+  region?: string;
+}
+
 export interface WorkItem {
   id: string;
   category: string;
   name: string;
   unit: '㎡' | 'm' | '箇所' | '式' | '枚';
-  materialUnitPrice: { low: number; high: number; verified: false; source: 'placeholder' };
+  materialUnitPrice: UnitPrice;
   diyClass: DiyClass;
   requiredLicense?: string;
   permitNote?: string;
@@ -13,20 +58,26 @@ export interface WorkItem {
   marketNote?: string;
 }
 
-const P = (low: number, high: number) =>
-  ({ low, high, verified: false as const, source: 'placeholder' as const });
+/**
+ * 初期値。全国一律の「正しい単価」は存在しない
+ * （ホームセンターの値段でさえ店舗ごとに違う）。
+ * だからここは「よく見かける幅」でしかなく、未検証として扱う。
+ * 使う人が自分の単価帳を入れて初めて、確かな数字になる。
+ */
+const P = (low: number, high: number, basis: PriceBasis = 'material') =>
+  ({ low, high, basis, source: '一般的なレンジ（未検証）', verified: false });
 
 /** 工事項目マスタ(§7)。単価はすべてプレースホルダのレンジ(参考値・要検証) */
 export const WORK_ITEMS: WorkItem[] = [
   // 解体
-  { id: 'demo-partition', category: '解体', name: '間仕切り壁の撤去', unit: '㎡', materialUnitPrice: P(500, 2000), diyClass: 'diy_hard',
+  { id: 'demo-partition', category: '解体', name: '間仕切り壁の撤去', unit: '㎡', materialUnitPrice: P(500, 2000, 'service'), diyClass: 'diy_hard',
     steps: ['構造に関わらない壁か専門家に確認する', '電気配線・スイッチの有無を確認し、あれば電気工事士に依頼', '養生してボード・下地を解体する', '廃材を分別して処分する'],
     marketNote: '専門施工なら処分費込みで㎡あたり数千円の桁(参考・要検証)' },
-  { id: 'demo-floor', category: '解体', name: '床の解体(仕上げ+下地)', unit: '㎡', materialUnitPrice: P(500, 1500), diyClass: 'diy_hard',
+  { id: 'demo-floor', category: '解体', name: '床の解体(仕上げ+下地)', unit: '㎡', materialUnitPrice: P(500, 1500, 'service'), diyClass: 'diy_hard',
     steps: ['床下の状態(腐朽・シロアリ)を先に確認する', 'バール等で仕上げ材を剥がす', '下地の再利用可否を判断する', '廃材を分別処分する'] },
-  { id: 'demo-ceiling', category: '解体', name: '天井の解体', unit: '㎡', materialUnitPrice: P(500, 1500), diyClass: 'diy_hard',
+  { id: 'demo-ceiling', category: '解体', name: '天井の解体', unit: '㎡', materialUnitPrice: P(500, 1500, 'service'), diyClass: 'diy_hard',
     steps: ['粉じん対策(防じんマスク・ゴーグル)を必ずする', '照明・配線を外す(配線側は電気工事士)', '天井板を剥がし小屋裏の状態を確認する'] },
-  { id: 'demo-zanchi', category: '解体', name: '残置物の処分', unit: '式', materialUnitPrice: P(30000, 200000), diyClass: 'diy',
+  { id: 'demo-zanchi', category: '解体', name: '残置物の処分', unit: '式', materialUnitPrice: P(30000, 200000, 'service'), diyClass: 'diy',
     steps: ['使えるもの・売れるもの・思い出の品を仕分ける', '自治体の粗大ごみ・クリーンセンターに持ち込む', '量が多ければ一般廃棄物収集運搬の許可業者に依頼する'],
     marketNote: '業者依頼はトラック1台あたり数万円の桁(参考・要検証)' },
   // 木工事
@@ -36,21 +87,21 @@ export const WORK_ITEMS: WorkItem[] = [
     steps: ['腐朽範囲を特定する', '同寸の材に差し替える', '束の沈みは束で調整する'] },
   { id: 'carp-partition', category: '木工事', name: '間仕切り壁の新設(下地+ボード)', unit: '㎡', materialUnitPrice: P(3000, 7000), diyClass: 'diy_hard',
     steps: ['位置を墨出しする', '天地の桟と間柱を組む', '石膏ボードを両面に張る', 'パテ処理する'] },
-  { id: 'carp-opening', category: '木工事', name: '開口部の新設(建具枠まで)', unit: '箇所', materialUnitPrice: P(15000, 60000), diyClass: 'pro_recommended',
+  { id: 'carp-opening', category: '木工事', name: '開口部の新設(建具枠まで)', unit: '箇所', materialUnitPrice: P(15000, 60000, 'installed'), diyClass: 'pro_recommended',
     steps: ['構造上問題ない壁か専門家に確認する', 'まぐさ・柱の補強を入れる', '枠を取り付ける'],
     marketNote: '構造の確認が前提。壁の種類で費用が大きく変わる' },
   { id: 'carp-close-opening', category: '木工事', name: '開口部の閉鎖(壁化)', unit: '箇所', materialUnitPrice: P(8000, 30000), diyClass: 'diy_hard',
     steps: ['建具・枠を外す', '下地を組んでボードを張る', '外壁側は防水に注意(外部関連は専門家に)'] },
   { id: 'carp-shelf', category: '木工事', name: '造作棚', unit: '箇所', materialUnitPrice: P(5000, 30000), diyClass: 'diy',
     steps: ['下地(間柱)の位置を探す', '棚受けを固定する', '棚板を載せる'] },
-  { id: 'carp-tategu-chosei', category: '木工事', name: '建具の調整・修理', unit: '箇所', materialUnitPrice: P(500, 5000), diyClass: 'diy',
+  { id: 'carp-tategu-chosei', category: '木工事', name: '建具の調整・修理', unit: '箇所', materialUnitPrice: P(500, 5000, 'service'), diyClass: 'diy',
     steps: ['敷居・鴨居の擦れを確認する', '戸車交換・鉋がけで調整する'] },
   // 内装
   { id: 'flooring', category: '内装', name: 'フローリング張り', unit: '㎡', materialUnitPrice: P(3000, 8000), diyClass: 'diy',
     steps: ['下地の水平・強度を確認する', '割付を決める', 'サネをはめながら張る', '巾木を回す'] },
   { id: 'cushion_floor', category: '内装', name: 'クッションフロア張り', unit: '㎡', materialUnitPrice: P(1500, 3500), diyClass: 'diy',
     steps: ['下地を平滑にする', '仮敷きして切り込む', '接着剤で張る'] },
-  { id: 'tatami_omote', category: '内装', name: '畳の表替え', unit: '枚', materialUnitPrice: P(5000, 15000), diyClass: 'pro_recommended',
+  { id: 'tatami_omote', category: '内装', name: '畳の表替え', unit: '枚', materialUnitPrice: P(5000, 15000, 'installed'), diyClass: 'pro_recommended',
     steps: ['畳店に枚数を伝えて見積をとる', '朝出し夕方納品が一般的'] },
   { id: 'cloth', category: '内装', name: '壁クロス張り', unit: '㎡', materialUnitPrice: P(1000, 2500), diyClass: 'diy_hard',
     steps: ['下地パテ処理する', '糊付きクロスを張る', 'ジョイントをカットする'] },
@@ -64,35 +115,35 @@ export const WORK_ITEMS: WorkItem[] = [
   { id: 'ceiling_board', category: '内装', name: '天井板張り替え', unit: '㎡', materialUnitPrice: P(2500, 6000), diyClass: 'diy_hard',
     steps: ['下地の状態を確認する', '野縁を調整する', '板を張る'] },
   // 建具
-  { id: 'door-replace', category: '建具', name: '室内ドア交換', unit: '箇所', materialUnitPrice: P(20000, 60000), diyClass: 'diy_hard',
+  { id: 'door-replace', category: '建具', name: '室内ドア交換', unit: '箇所', materialUnitPrice: P(20000, 60000, 'equipment'), diyClass: 'diy_hard',
     steps: ['枠の歪みを確認する', '既製建具の寸法を合わせる', '丁番・ハンドルを付ける'] },
-  { id: 'window_inner', category: '建具', name: '内窓の設置', unit: '箇所', materialUnitPrice: P(30000, 80000), diyClass: 'diy',
+  { id: 'window_inner', category: '建具', name: '内窓の設置', unit: '箇所', materialUnitPrice: P(30000, 80000, 'equipment'), diyClass: 'diy',
     steps: ['窓枠の内寸を採寸する', 'メーカーに発注する', 'レールをビス留めして障子をはめる'],
     marketNote: '断熱効果が大きく、補助金の対象になることが多い' },
   { id: 'amido', category: '建具', name: '網戸の新調・張替え', unit: '枚', materialUnitPrice: P(2000, 8000), diyClass: 'diy',
     steps: ['ゴムの太さを確認する', 'ネットをローラーで押し込む'] },
   // 水回り
-  { id: 'kitchen', category: '水回り', name: 'キッチン交換・新設', unit: '式', materialUnitPrice: P(150000, 800000), diyClass: 'pro_recommended',
+  { id: 'kitchen', category: '水回り', name: 'キッチン交換・新設', unit: '式', materialUnitPrice: P(150000, 800000, 'equipment'), diyClass: 'pro_recommended',
     permitNote: '給排水の接続は指定工事店・有資格者の施工',
     steps: ['給排水・ガス・電気の位置を決める', '本体を発注する', '接続工事は専門業者に依頼する'],
     marketNote: '本体グレードで価格帯が大きく変わる' },
-  { id: 'toilet', category: '水回り', name: 'トイレ交換・新設', unit: '式', materialUnitPrice: P(80000, 300000), diyClass: 'pro_recommended',
+  { id: 'toilet', category: '水回り', name: 'トイレ交換・新設', unit: '式', materialUnitPrice: P(80000, 300000, 'equipment'), diyClass: 'pro_recommended',
     permitNote: '給排水の接続は指定工事店・有資格者の施工',
     steps: ['排水芯の位置を確認する', '便器を選定する', '設置・接続は専門業者に依頼する'] },
-  { id: 'senmen', category: '水回り', name: '洗面台の交換・新設', unit: '式', materialUnitPrice: P(40000, 150000), diyClass: 'pro_recommended',
+  { id: 'senmen', category: '水回り', name: '洗面台の交換・新設', unit: '式', materialUnitPrice: P(40000, 150000, 'equipment'), diyClass: 'pro_recommended',
     steps: ['給排水の位置を確認する', '本体を発注する', '接続は専門業者に依頼する'] },
-  { id: 'bath', category: '水回り', name: 'ユニットバス設置', unit: '式', materialUnitPrice: P(500000, 1500000), diyClass: 'pro_recommended',
+  { id: 'bath', category: '水回り', name: 'ユニットバス設置', unit: '式', materialUnitPrice: P(500000, 1500000, 'equipment'), diyClass: 'pro_recommended',
     steps: ['サイズが入るか採寸する', '土間打ち・組立・接続は専門業者に依頼する'] },
-  { id: 'haisui-koshin', category: '水回り', name: '給排水管の更新', unit: '式', materialUnitPrice: P(100000, 500000), diyClass: 'licensed', requiredLicense: '指定給水装置工事事業者(給水) / 排水設備指定工事店(排水)',
+  { id: 'haisui-koshin', category: '水回り', name: '給排水管の更新', unit: '式', materialUnitPrice: P(100000, 500000, 'installed'), diyClass: 'licensed', requiredLicense: '指定給水装置工事事業者(給水) / 排水設備指定工事店(排水)',
     steps: ['既存管の材質・漏れを調査する', '指定工事店に見積を依頼する'] },
   // 電気
-  { id: 'outlet', category: '電気', name: 'コンセント増設', unit: '箇所', materialUnitPrice: P(3000, 8000), diyClass: 'licensed', requiredLicense: '電気工事士',
+  { id: 'outlet', category: '電気', name: 'コンセント増設', unit: '箇所', materialUnitPrice: P(3000, 8000, 'installed'), diyClass: 'licensed', requiredLicense: '電気工事士',
     steps: ['必要な場所と数を図面に落とす', '電気工事士に依頼する'] },
-  { id: 'circuit', category: '電気', name: '専用回路の増設', unit: '箇所', materialUnitPrice: P(10000, 30000), diyClass: 'licensed', requiredLicense: '電気工事士',
+  { id: 'circuit', category: '電気', name: '専用回路の増設', unit: '箇所', materialUnitPrice: P(10000, 30000, 'installed'), diyClass: 'licensed', requiredLicense: '電気工事士',
     steps: ['大容量機器(IH・エアコン・電子レンジ)の位置を決める', '分電盤の空きを確認してもらう', '電気工事士に依頼する'] },
-  { id: 'lighting_diy', category: '電気', name: '照明器具の取付(引掛シーリング)', unit: '箇所', materialUnitPrice: P(3000, 20000), diyClass: 'diy',
+  { id: 'lighting_diy', category: '電気', name: '照明器具の取付(引掛シーリング)', unit: '箇所', materialUnitPrice: P(3000, 20000, 'equipment'), diyClass: 'diy',
     steps: ['引掛シーリングが付いているか確認する', '器具を選んで取り付ける'] },
-  { id: 'switch', category: '電気', name: 'スイッチ交換', unit: '箇所', materialUnitPrice: P(1000, 3000), diyClass: 'licensed', requiredLicense: '電気工事士',
+  { id: 'switch', category: '電気', name: 'スイッチ交換', unit: '箇所', materialUnitPrice: P(1000, 3000, 'installed'), diyClass: 'licensed', requiredLicense: '電気工事士',
     steps: ['電気工事士に依頼する(配線に触る作業のため)'] },
   // 断熱
   { id: 'insulate-floor', category: '断熱', name: '床下断熱材の充填', unit: '㎡', materialUnitPrice: P(2000, 4500), diyClass: 'diy_hard',
@@ -103,21 +154,21 @@ export const WORK_ITEMS: WorkItem[] = [
   { id: 'gaiheki-paint', category: '外部', name: '外壁塗装', unit: '㎡', materialUnitPrice: P(1500, 4000), diyClass: 'diy_hard',
     steps: ['高所は足場が必要(足場は専門業者)', '洗浄・下地処理する', '下塗り+上塗り2回'],
     marketNote: '足場代が大きい。高所作業は無理をしない' },
-  { id: 'yane-hoshu', category: '外部', name: '屋根の補修', unit: '式', materialUnitPrice: P(50000, 500000), diyClass: 'pro_recommended',
+  { id: 'yane-hoshu', category: '外部', name: '屋根の補修', unit: '式', materialUnitPrice: P(50000, 500000, 'installed'), diyClass: 'pro_recommended',
     steps: ['地上・小屋裏から雨漏り箇所を推定する', '屋根業者に調査を依頼する'],
     marketNote: '高所のため原則プロへ。応急処置もプロと相談' },
   { id: 'amadoi', category: '外部', name: '雨樋の交換', unit: 'm', materialUnitPrice: P(1500, 4000), diyClass: 'diy_hard',
     steps: ['勾配を確認する', '金具を付け替える', '高所は足場・脚立の安全確保を最優先に'] },
   // 設備
-  { id: 'kanki', category: '設備', name: '換気扇の設置・交換', unit: '箇所', materialUnitPrice: P(10000, 50000), diyClass: 'pro_recommended',
+  { id: 'kanki', category: '設備', name: '換気扇の設置・交換', unit: '箇所', materialUnitPrice: P(10000, 50000, 'equipment'), diyClass: 'pro_recommended',
     permitNote: '新規の電源工事は電気工事士',
     steps: ['換気経路を決める', '外壁開口が必要なら専門業者に依頼する'] },
-  { id: 'aircon', category: '設備', name: 'エアコン設置', unit: '箇所', materialUnitPrice: P(80000, 250000), diyClass: 'pro_recommended',
+  { id: 'aircon', category: '設備', name: 'エアコン設置', unit: '箇所', materialUnitPrice: P(80000, 250000, 'installed'), diyClass: 'pro_recommended',
     steps: ['部屋の広さから容量を選ぶ', '専用回路の有無を確認する', '設置業者に依頼する'] },
   // その他
-  { id: 'shiroari', category: 'その他', name: 'シロアリ防除', unit: '㎡', materialUnitPrice: P(1500, 3500), diyClass: 'pro_recommended',
+  { id: 'shiroari', category: 'その他', name: 'シロアリ防除', unit: '㎡', materialUnitPrice: P(1500, 3500, 'installed'), diyClass: 'pro_recommended',
     steps: ['床下調査を依頼する', '被害があれば駆除+予防処理する'] },
-  { id: 'cleaning', category: 'その他', name: 'ハウスクリーニング', unit: '式', materialUnitPrice: P(30000, 150000), diyClass: 'diy',
+  { id: 'cleaning', category: 'その他', name: 'ハウスクリーニング', unit: '式', materialUnitPrice: P(30000, 150000, 'service'), diyClass: 'diy',
     steps: ['自分たちでやる範囲と頼む範囲を分ける', '水回りだけプロに頼むのも手'] },
 ];
 

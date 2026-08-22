@@ -895,3 +895,77 @@ body{
   .site-map{aspect-ratio:auto;height:150mm;max-height:none;page-break-inside:avoid}
   .site-facts{page-break-inside:avoid}
 }
+
+/* ── 単価帳 ─────────────────────────────────── */
+.prices-count{margin:12px 0 0;font-size:12.5px;color:var(--fg-2);font-variant-numeric:tabular-nums}
+.prices-count b{font-size:15px;color:var(--fg)}
+.prices-bar{margin-top:20px}
+.prices-io{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.prices-io .hb-btn{min-height:40px;font-size:12.5px}
+.prices-msg{margin:10px 0 0;font-size:12.5px;color:var(--conf-measured)}
+.prices-err{margin:10px 0 0;padding:10px 12px;font-size:12px;line-height:1.8;list-style:none}
+.prices-hint{
+  margin:18px 0 0;padding:11px 14px;background:var(--sunken);border-left:2px solid var(--border);
+  font-size:12.5px;line-height:1.9;color:var(--fg-2);
+}
+.prices-list{margin-top:20px;border-top:1px solid var(--border)}
+.price{padding:14px 0;border-bottom:1px solid var(--border-soft)}
+.price.in-plan{border-left:2px solid var(--cta);padding-left:12px;margin-left:-14px}
+.price-top{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.price-id{min-width:0;flex:1 1 220px}
+.price-id h3{margin:0;font-size:15px;line-height:1.55;font-weight:600}
+.price-id p{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:5px 0 0}
+.price-cat{font-size:10.5px;color:var(--fg-3);letter-spacing:.06em}
+.price-basis{
+  font-size:10px;padding:2px 7px;border-radius:2px;letter-spacing:.02em;
+  background:var(--bg-alt);color:var(--fg-2);cursor:help;
+}
+.price-basis.b-installed{background:#f6e4e1;color:#8f2d21}
+.price-basis.b-equipment{background:#e6ecf4;color:#2c4a70}
+.price-basis.b-service{background:#f1eee6;color:#6b6250}
+.price-inplan{font-size:10px;color:var(--cta-text);background:var(--cta);padding:2px 7px;border-radius:2px}
+.price-nums{display:flex;align-items:center;gap:5px;flex:none}
+.price-nums input{
+  width:82px;font-size:15px;text-align:right;padding:8px 10px;min-height:40px;
+  border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--fg);
+  font-variant-numeric:tabular-nums;
+}
+.price.is-mine .price-nums input{border-color:var(--conf-measured);background:#f4faf7}
+.price-tilde{color:var(--fg-3);font-size:12px}
+.price-unit{font-size:11px;color:var(--fg-3);white-space:nowrap}
+.price-meta{display:flex;gap:10px;align-items:baseline;justify-content:space-between;margin-top:7px;flex-wrap:wrap}
+.price-src{font-size:11px;color:var(--fg-3);line-height:1.7}
+.price-src.mine{color:var(--conf-measured)}
+.price-more{
+  background:none;border:0;padding:4px 0;cursor:pointer;
+  font-size:11px;color:var(--fg-2);text-decoration:underline;flex:none;
+}
+.price-edit{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px}
+.price-edit .numpad-field{min-height:40px}
+.price-edit .numpad-field input{width:150px;font-size:14px;text-align:left}
+.price-note{flex-basis:100%;margin:4px 0 0;font-size:11px;color:var(--fg-3);line-height:1.7}
+@media (prefers-color-scheme:dark){
+  .price.is-mine .price-nums input{background:transparent}
+}
+.money-todo{
+  margin:10px 0 0;padding:10px 12px;background:#fdf4e3;border-left:2px solid #e0b962;
+  font-size:12px;line-height:1.85;color:#7a5a12;
+}
+.money-todo b{color:#5f460e}
+.money-todo a{text-decoration:underline;color:#5f460e}
+@media (prefers-color-scheme:dark){
+  .money-todo{background:#2a2317;border-left-color:#8a6d2c;color:#e2c98d}
+  .money-todo b,.money-todo a{color:#f0dfb0}
+}
+
+/* ── 予算に対して ─────────────────────────── */
+.budget{margin-top:26px;padding:15px 17px;background:var(--sunken);border-left:2px solid var(--conf-measured)}
+.budget.is-over{border-left-color:#b3392b;background:#fbf1ef}
+.budget h3{margin:0 0 10px;font-size:10.5px;letter-spacing:.18em;color:var(--fg-3);font-weight:600}
+.budget-row{display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:3px 0;font-size:13px;color:var(--fg-2)}
+.budget-row b{font-size:15px;color:var(--fg);white-space:nowrap}
+.budget-bar{height:4px;border-radius:99px;background:var(--border-soft);overflow:hidden;margin:9px 0 0}
+.budget-bar span{display:block;height:100%;background:var(--conf-measured)}
+.budget.is-over .budget-bar span{background:#b3392b}
+.budget p{margin:9px 0 0;font-size:12px;line-height:1.9;color:var(--fg-2)}
+@media (prefers-color-scheme:dark){ .budget.is-over{background:#2a1d1b} }

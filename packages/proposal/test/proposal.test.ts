@@ -195,3 +195,92 @@ describe('ヒアリング', () => {
     expect(applyAnswer({}, q, '仏壇、大黒柱 柿の木').keep).toEqual(['仏壇', '大黒柱', '柿の木']);
   });
 });
+
+describe('聞いた答えが、案に効く', () => {
+  it('予算を下げると、後ろの段から手が減る', () => {
+    const rich = buildProposals(model, { ...baseProfile, budgetYen: 20_000_000 }, emptySite);
+    const tight = buildProposals(model, { ...baseProfile, budgetYen: 300_000 }, emptySite);
+    for (let i = 0; i < 3; i++) {
+      expect(tight[i]!.steps.length).toBeLessThan(rich[i]!.steps.length);
+      // 一段目（開けるために要る）は削らない
+      const stage1Rich = rich[i]!.steps.filter((s) => s.stage === 1).length;
+      const stage1Tight = tight[i]!.steps.filter((s) => s.stage === 1).length;
+      expect(stage1Tight).toBe(stage1Rich);
+    }
+  });
+
+  it('削った手は、黙って消さずに理由つきで見せる', () => {
+    const tight = buildProposals(model, { ...baseProfile, budgetYen: 300_000 }, emptySite);
+    expect(tight[0]!.fit.trimmed.length).toBeGreaterThan(0);
+    expect(tight[0]!.notNow.join('')).toContain('予算');
+  });
+
+  it('予算を聞いていなければ、削らないし over とも言わない', () => {
+    const p = buildProposals(model, { ...baseProfile, budgetYen: undefined }, emptySite);
+    expect(p[0]!.fit.budgetYen).toBeUndefined();
+    expect(p[0]!.fit.trimmed).toEqual([]);
+    expect(p[0]!.fit.over).toBe(false);
+  });
+
+  it('見込みは、高いほうで予算と突き合わせる', () => {
+    const p = buildProposals(model, { ...baseProfile, budgetYen: 5_000_000 }, emptySite)[0]!;
+    expect(p.fit.highYen).toBeGreaterThanOrEqual(p.fit.lowYen);
+    expect(p.fit.over).toBe(p.fit.highYen > 5_000_000);
+  });
+
+  it('近所で気にしていることは、一段目の手になる', () => {
+    const p = buildProposals(model, { ...baseProfile, neighbours: ['夜の音', '駐車場が狭い'] }, emptySite)[0]!;
+    const step = p.steps.find((s) => s.title.includes('近所'));
+    expect(step).toBeTruthy();
+    expect(step!.stage).toBe(1);
+    expect(step!.blockedBy!.join('')).toContain('音');
+    expect(step!.blockedBy!.join('')).toContain('車');
+  });
+
+  it('住みながらなら、暮らしと営業を分ける手が入る', () => {
+    const p = buildProposals(model, { ...baseProfile, liveIn: true }, emptySite)[0]!;
+    expect(p.steps.map((s) => s.title).join('|')).toContain('暮らす側');
+    const off = buildProposals(model, { ...baseProfile, liveIn: false }, emptySite)[0]!;
+    expect(off.steps.map((s) => s.title).join('|')).not.toContain('暮らす側');
+  });
+
+  it('来る人で、入口まわりの手が変わる', () => {
+    const t = buildProposals(model, { ...baseProfile, guests: 'travellers' }, emptySite)[0]!;
+    const n = buildProposals(model, { ...baseProfile, guests: 'neighbours' }, emptySite)[0]!;
+    expect(t.steps.map((s) => s.title).join('|')).toContain('荷物');
+    expect(n.steps.map((s) => s.title).join('|')).toContain('通りから見て');
+  });
+
+  it('人数が多いカフェなら、便所が二つ要ると言う', () => {
+    const few = buildProposals(model, { ...baseProfile, capacity: 6 }, emptySite)[0]!;
+    const many = buildProposals(model, { ...baseProfile, capacity: 20 }, emptySite)[0]!;
+    expect(few.steps.map((s) => s.title).join('|')).not.toContain('便所');
+    expect(many.steps.map((s) => s.title).join('|')).toContain('便所');
+  });
+
+  it('生活を支える収入が要るなら、開け続けられる形にする手が入る', () => {
+    const p = buildProposals(model, { ...baseProfile, revenue: 'profit', cadence: 'daily' }, emptySite)[1]!;
+    expect(p.steps.map((s) => s.title).join('|')).toContain('開け続けられる');
+  });
+
+  it('聞いた13問のうち、案に効かないものが無い', () => {
+    const base = buildProposals(model, baseProfile, emptySite);
+    const sig = (p: typeof base) => p.map((x) => x.steps.map((s) => s.title).join('|') + x.notNow.join('|') + x.because).join('##');
+    const changes: Record<string, boolean> = {
+      guests: sig(buildProposals(model, { ...baseProfile, guests: 'travellers' }, emptySite)) !== sig(base),
+      capacity: sig(buildProposals(model, { ...baseProfile, capacity: 20 }, emptySite)) !== sig(base),
+      neighbours: sig(buildProposals(model, { ...baseProfile, neighbours: ['夜の音'] }, emptySite)) !== sig(base),
+      revenue: sig(buildProposals(model, { ...baseProfile, revenue: 'profit' }, emptySite)) !== sig(base),
+      liveIn: sig(buildProposals(model, { ...baseProfile, liveIn: true }, emptySite)) !== sig(base),
+      budgetYen: sig(buildProposals(model, { ...baseProfile, budgetYen: 300_000 }, emptySite)) !== sig(base),
+      openBy: sig(buildProposals(model, { ...baseProfile, openBy: '2027-04' }, emptySite)) !== sig(base),
+      hands: sig(buildProposals(model, { ...baseProfile, hands: 0 }, emptySite)) !== sig(base),
+      keep: sig(buildProposals(model, { ...baseProfile, keep: ['仏壇'] }, emptySite)) !== sig(base),
+      cadence: sig(buildProposals(model, { ...baseProfile, cadence: 'seasonal' }, emptySite)) !== sig(base),
+      core: sig(buildProposals(model, { ...baseProfile, core: '別の芯' }, emptySite)) !== sig(base),
+      use: sig(buildProposals(model, { ...baseProfile, use: 'minpaku' }, emptySite)) !== sig(base),
+    };
+    const dead = Object.entries(changes).filter(([, v]) => !v).map(([k]) => k);
+    expect(dead).toEqual([]);
+  });
+});

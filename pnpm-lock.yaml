@@ -152,6 +152,9 @@ importers:
       '@hiraku/core':
         specifier: workspace:*
         version: link:../core
+      '@hiraku/estimate':
+        specifier: workspace:*
+        version: link:../estimate
       '@hiraku/rules':
         specifier: workspace:*
         version: link:../rules

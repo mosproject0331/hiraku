@@ -393,7 +393,7 @@ export const useEditor = create<EditorState>()(
   resetHearing: () => set({ hearing: {}, proposals: [], lastPlans: null }),
   makeProposals: () => {
     const s = get();
-    const proposals = buildProposals(s.model, s.hearing, collectSiteFacts(s));
+    const proposals = buildProposals(s.model, s.hearing, collectSiteFacts(s), s.priceBook);
     set({
       proposals,
       // 見積の取り込みは従来の形も使うので、そちらにも入れておく

@@ -1,11 +1,17 @@
-import { WORK_ITEMS, type WorkItem } from './data/work-items';
+import { WORK_ITEMS, type PriceBasis, type WorkItem } from './data/work-items';
 
 export interface PriceOverride {
   id: string;
   low: number;
   high: number;
-  /** 出所メモ（積算シート名など） */
+  /** 出所メモ（積算シート名・仕入先など） */
   source?: string;
+  /** いつ時点の数字か (YYYY-MM) */
+  asOf?: string;
+  /** 何の値段か。省略すると元の種別のまま */
+  basis?: PriceBasis;
+  /** 覚え書き */
+  note?: string;
 }
 
 export type PriceBook = Record<string, PriceOverride>;
@@ -17,9 +23,17 @@ export function parsePriceCsv(text: string): { book: PriceBook; errors: string[]
   const known = new Set(WORK_ITEMS.map((w) => w.id));
   const lines = text.replace(/\r\n?/g, '\n').split('\n').filter((l) => l.trim());
   lines.forEach((line, i) => {
-    const cols = splitCsvLine(line);
+    const cols = splitCsvLine(line.replace(/^\ufeff/, ''));
     if (i === 0 && /(^|,)\s*id\s*(,|$)/i.test(line)) return; // ヘッダ
-    const [id, , lowS, highS, source] = cols;
+    // 新しい並び: id,name,unit,basis,low,high,source,asOf
+    // 古い並び:   id,name,low,high,source  ——どちらも読めるようにする
+    const looksNew = cols.length >= 6 && /^(material|equipment|installed|service)$/.test((cols[3] ?? '').trim());
+    const id = cols[0];
+    const basisS = looksNew ? cols[3]?.trim() : undefined;
+    const lowS = looksNew ? cols[4] : cols[2];
+    const highS = looksNew ? cols[5] : cols[3];
+    const source = looksNew ? cols[6] : cols[4];
+    const asOf = looksNew ? cols[7]?.trim() : undefined;
     if (!id) return;
     if (!known.has(id.trim())) {
       errors.push(`${i + 1}行目: 未知の工事項目ID「${id.trim()}」`);
@@ -31,7 +45,14 @@ export function parsePriceCsv(text: string): { book: PriceBook; errors: string[]
       errors.push(`${i + 1}行目: 単価が読み取れません（低い値 ≤ 高い値 の順で入れてください）`);
       return;
     }
-    book[id.trim()] = { id: id.trim(), low, high, source: source?.trim() || undefined };
+    book[id.trim()] = {
+      id: id.trim(),
+      low,
+      high,
+      source: source?.trim() || undefined,
+      asOf: asOf || undefined,
+      basis: (basisS as PriceOverride['basis']) || undefined,
+    };
   });
   return { book, errors };
 }
@@ -55,16 +76,24 @@ function splitCsvLine(line: string): string[] {
 }
 
 /** 取り込み用テンプレートCSV（現在の参考値入り） */
-export function priceTemplateCsv(): string {
-  const head = 'id,name,low,high,source';
-  const rows = WORK_ITEMS.map(
-    (w) =>
-      `${w.id},"${w.name.replace(/"/g, '""')}",${w.materialUnitPrice.low},${w.materialUnitPrice.high},`,
-  );
-  return [head, ...rows].join('\n') + '\n';
+export function priceTemplateCsv(book?: PriceBook): string {
+  const head = 'id,name,unit,basis,low,high,source,asOf';
+  const items = applyPriceBook(book);
+  const rows = items.map((w) => {
+    const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const p = w.materialUnitPrice;
+    return [
+      w.id, q(w.name), w.unit, p.basis, p.low, p.high,
+      q(p.verified ? p.source : ''), p.asOf ?? '',
+    ].join(',');
+  });
+  return '\ufeff' + [head, ...rows].join('\r\n') + '\r\n';
 }
 
-/** 単価帳を反映した工事項目を返す。上書きした項目は verified:true */
+/**
+ * 自分の単価帳を初期値にかぶせる。
+ * 入れた数字は「確かめた数字」として扱う——出どころを本人が知っているから。
+ */
 export function applyPriceBook(book: PriceBook | undefined): WorkItem[] {
   if (!book || Object.keys(book).length === 0) return WORK_ITEMS;
   return WORK_ITEMS.map((w) => {
@@ -73,11 +102,19 @@ export function applyPriceBook(book: PriceBook | undefined): WorkItem[] {
     return {
       ...w,
       materialUnitPrice: {
+        ...w.materialUnitPrice,
         low: o.low,
         high: o.high,
-        verified: true as unknown as false, // 実データ投入済み
-        source: (o.source ?? 'imported') as unknown as 'placeholder',
+        basis: o.basis ?? w.materialUnitPrice.basis,
+        source: o.source?.trim() || '自分の単価帳',
+        asOf: o.asOf,
+        verified: true,
       },
     };
   });
+}
+
+/** まだ自分の数字に置き換わっていない項目 */
+export function unverifiedItems(book: PriceBook | undefined): WorkItem[] {
+  return applyPriceBook(book).filter((w) => !w.materialUnitPrice.verified);
 }

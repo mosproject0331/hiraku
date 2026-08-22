@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@hiraku/core": "workspace:*",
-    "@hiraku/rules": "workspace:*"
+    "@hiraku/rules": "workspace:*",
+    "@hiraku/estimate": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

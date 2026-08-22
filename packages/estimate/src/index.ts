@@ -7,13 +7,16 @@ import {
   type RenovationOp,
   type SpaceModel,
 } from '@hiraku/core';
-import { DIY_CLASS_LABEL, WORK_ITEM_BY_ID, WORK_ITEMS, type DiyClass, type WorkItem } from './data/work-items';
+import {
+  BASIS_LABEL, BASIS_NOTE, DIY_CLASS_LABEL, WORK_ITEM_BY_ID, WORK_ITEMS,
+  type DiyClass, type PriceBasis, type UnitPrice, type WorkItem,
+} from './data/work-items';
 import { applyPriceBook, type PriceBook } from './overrides';
 
-export { DIY_CLASS_LABEL, WORK_ITEMS, WORK_ITEM_BY_ID };
-export { parsePriceCsv, priceTemplateCsv, applyPriceBook } from './overrides';
+export { BASIS_LABEL, BASIS_NOTE, DIY_CLASS_LABEL, WORK_ITEMS, WORK_ITEM_BY_ID };
+export { parsePriceCsv, priceTemplateCsv, applyPriceBook, unverifiedItems } from './overrides';
 export type { PriceBook, PriceOverride } from './overrides';
-export type { DiyClass, WorkItem };
+export type { DiyClass, WorkItem, PriceBasis, UnitPrice };
 
 export interface EstimateLine {
   itemId: string;
@@ -27,8 +30,14 @@ export interface EstimateLine {
   requiredLicense?: string;
   permitNote?: string;
   steps: string[];
-  /** 単価が実データで裏付けられているか（false=参考値・要検証） */
+  /** 単価が自分の数字で裏付けられているか（false=参考値・要検証） */
   verified: boolean;
+  /** その単価が何の値段か */
+  basis: PriceBasis;
+  /** どこから来た数字か */
+  priceSource: string;
+  /** いつ時点か */
+  priceAsOf?: string;
   structuralWarning?: string;
   note?: string;
 }
@@ -42,6 +51,10 @@ export interface PlanEstimate {
   /** (c) 許可・届出関連フラグ */
   permitFlags: string[];
   issues: OpIssue[];
+  /** 単価がまだ自分の数字になっていない項目（金額の大きい順） */
+  unverified: { itemId: string; name: string; impactYen: number }[];
+  /** 種別ごとの内訳。「材料費」と言い切れない項目がどれだけ混じっているか */
+  basisMix: Record<PriceBasis, number>;
 }
 
 const round100 = (n: number) => Math.round(n / 100) * 100;
@@ -68,6 +81,9 @@ function line(
     permitNote: w.permitNote,
     steps: w.steps,
     verified: Boolean(w.materialUnitPrice.verified),
+    basis: w.materialUnitPrice.basis,
+    priceSource: w.materialUnitPrice.source,
+    priceAsOf: w.materialUnitPrice.asOf,
     ...extras,
   };
 }
@@ -197,5 +213,17 @@ export function estimatePlan(
     },
     permitFlags,
     issues,
+    // 自分の数字に置き換えると、いちばん金額が動く順に並べる
+    unverified: lines
+      .filter((l) => !l.verified)
+      .map((l) => ({ itemId: l.itemId, name: l.name, impactYen: l.highYen - l.lowYen }))
+      .sort((a, b) => b.impactYen - a.impactYen),
+    basisMix: lines.reduce(
+      (acc, l) => {
+        acc[l.basis] = (acc[l.basis] ?? 0) + 1;
+        return acc;
+      },
+      { material: 0, equipment: 0, installed: 0, service: 0 } as Record<PriceBasis, number>,
+    ),
   };
 }

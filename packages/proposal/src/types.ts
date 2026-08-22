@@ -44,6 +44,8 @@ export interface WorkStep {
   ops: RenovationOp[];
   /** 先に確かめないと動けないこと */
   blockedBy?: string[];
+  /** 外せない手か。予算を詰めるときも残す */
+  essential?: boolean;
   /** この手が効く根拠になっている、確かめた事実 */
   basedOn?: string[];
 }
@@ -63,6 +65,16 @@ export interface Proposal {
   assumptions: string[];
   /** 次の一手。多くて2つに絞る */
   nextTwo: string[];
+  /** 予算に対する見込み。聞いていなければ budgetYen は undefined */
+  fit: {
+    lowYen: number;
+    highYen: number;
+    budgetYen?: number;
+    /** 予算をはみ出しているか */
+    over: boolean;
+    /** 予算に収めるために外した手 */
+    trimmed: string[];
+  };
 }
 
 /** ヒアリングで集める、その人の側の条件 */

@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { applyOps, detectRooms, type RenovationOp, type SpaceModel } from '@hiraku/core';
-import { DIY_CLASS_LABEL, estimatePlan, type PlanEstimate } from '@hiraku/estimate';
+import { BASIS_LABEL, DIY_CLASS_LABEL, estimatePlan, type PlanEstimate } from '@hiraku/estimate';
 import {
   canPropose, HANDS_LABEL, intakeProgress, nextQuestion, opsOf, QUESTIONS, roomNames, STAGE_LABEL,
   type Proposal, type Question, type Stage, type WorkStep,
@@ -229,7 +230,7 @@ function ProposalSheet({ p, model, index }: { p: Proposal; model: SpaceModel; in
   const priceBook = useEditor((s) => s.priceBook);
   const ops = useMemo(() => opsOf(p), [p]);
   const est: PlanEstimate = useMemo(() => estimatePlan(model, ops, priceBook), [model, ops, priceBook]);
-  const unverified = est.lines.some((l) => !l.verified);
+  const unverified = est.unverified.length;
   const warnings = est.lines.filter((l) => l.structuralWarning);
 
   const stages: Stage[] = [1, 2, 3];
@@ -295,16 +296,54 @@ function ProposalSheet({ p, model, index }: { p: Proposal; model: SpaceModel; in
         </p>
       )}
 
+      {p.fit.budgetYen !== undefined && (
+        <section className={'budget' + (p.fit.over ? ' is-over' : '')}>
+          <h3>予算に対して</h3>
+          <div className="budget-row">
+            <span>この案の見込み</span>
+            <b className="num">{yen(p.fit.lowYen)}〜{yen(p.fit.highYen)}円</b>
+          </div>
+          <div className="budget-row">
+            <span>聞いた予算</span>
+            <b className="num">{yen(p.fit.budgetYen)}円</b>
+          </div>
+          <div className="budget-bar">
+            <span style={{ width: `${Math.min(100, Math.round((p.fit.highYen / p.fit.budgetYen) * 100))}%` }} />
+          </div>
+          <p>
+            {p.fit.over
+              ? '開けるために要る手だけで、予算をはみ出しています。予算を上げるか、用途を軽い形に変えるかの二択です。'
+              : p.fit.trimmed.length
+                ? `${p.fit.trimmed.length}件を後ろの段から外して、予算に収めました。外したものは下に書いています。`
+                : '予算のなかに収まっています。'}
+          </p>
+        </section>
+      )}
+
       <section className="money">
         <div>
-          <span>(a) 自分たちで買う材料費{unverified && <em>参考値・要検証</em>}</span>
+          <span>(a) 自分たちで動かす分{unverified > 0 && <em>参考値・要検証</em>}</span>
           <b>{yen(est.diyMaterial.lowYen)}〜{yen(est.diyMaterial.highYen)}円</b>
         </div>
         <div>
-          <span>(b) 専門・有資格工事の材料費{unverified && <em>参考値・要検証</em>}</span>
+          <span>(b) 専門・有資格工事{unverified > 0 && <em>参考値・要検証</em>}</span>
           <b>{yen(est.proMaterial.lowYen)}〜{yen(est.proMaterial.highYen)}円</b>
         </div>
-        <p className="money-note">(b)の施工費は含みません（要見積）。総額の一本値は出しません。</p>
+        <p className="money-note">
+          (b)の施工費は含みません（要見積）。総額の一本値は出しません。
+          内訳の種別 —{' '}
+          {(Object.entries(est.basisMix) as [keyof typeof est.basisMix, number][])
+            .filter(([, n]) => n > 0)
+            .map(([k, n]) => `${BASIS_LABEL[k]} ${n}件`)
+            .join(' / ')}
+        </p>
+        {unverified > 0 && (
+          <p className="money-todo">
+            この{est.lines.length}件のうち<b>{unverified}件</b>は、まだ自分の単価になっていません。
+            いちばん金額が動くのは「{est.unverified[0]!.name}」です。{' '}
+            <Link href="/app/prices">単価帳で埋める</Link>
+          </p>
+        )}
         {est.permitFlags.length > 0 && (
           <p className="money-note"><b>(c) 資格・届出</b> — {est.permitFlags.join(' / ')}</p>
         )}
@@ -321,6 +360,8 @@ function ProposalSheet({ p, model, index }: { p: Proposal; model: SpaceModel; in
               </div>
               <div className="bd-tags">
                 <span className={'bd-class c-' + l.diyClass}>{DIY_CLASS_LABEL[l.diyClass]}</span>
+                <span className={'price-basis b-' + l.basis}>{BASIS_LABEL[l.basis]}</span>
+                {!l.verified && <span className="bd-note">単価は{l.priceSource}</span>}
                 {l.requiredLicense && <span className="bd-lic">{l.requiredLicense}</span>}
                 {l.note && <span className="bd-note">{l.note}</span>}
               </div>
