@@ -73,7 +73,13 @@ describe('現況調査報告書', async () => {
     expect(html).toContain('全体に湿気が強い');
     expect(html).not.toContain('<b>');
   });
-  it('実測済みの壁は緑で描かれる', () => {
-    expect(html).toContain('#16a34a');
+  it('実測済みの壁はDESIGN.mdの実測色で描かれる', () => {
+    expect(html).toContain('#2f7a58');
+  });
+
+  it('確度3色はDESIGN.md v3.0の値を使う(装飾流用禁止)', () => {
+    for (const c of ['#a8a29a', '#2f7a58']) expect(html).toContain(c);
+    // 旧Tailwind系の色が残っていないこと
+    for (const old of ['#9ca3af', '#d97706', '#16a34a']) expect(html).not.toContain(old);
   });
 });
