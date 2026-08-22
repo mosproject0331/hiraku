@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --dangerously-allow-all-builds
       - name: テスト
         run: pnpm -r test
       - uses: actions/configure-pages@v5
