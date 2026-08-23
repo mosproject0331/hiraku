@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { buildRenovationScene, type RenovationOp, type SpaceModel } from '@hiraku/core';
 import {
-  buildPrompt, getApiKey, renderPerspective, setApiKey, type PerspectiveResult,
+  buildPrompt, getApiKey, getModel, listImageModels, renderPerspective, setApiKey, setModel,
+  type ImageModel, type PerspectiveResult,
 } from '@/lib/perspective';
 import { describeSun, type LightKey } from '@/lib/archviz';
 import { detectTier, profileFor, type Tier } from '@/lib/quality';
@@ -66,6 +67,10 @@ export default function PlanPerspective({
   const [error, setError] = useState('');
   const [keyInput, setKeyInput] = useState('');
   const [needKey, setNeedKey] = useState(false);
+  const [models, setModels] = useState<ImageModel[]>([]);
+  const [chosen, setChosen] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [keyNote, setKeyNote] = useState('');
   const [pick, setPick] = useState<Tier | 'auto'>('auto');
   const [season, setSeason] = useState('today');
   const [auto, setAuto] = useState<Tier>('mid');
@@ -74,6 +79,32 @@ export default function PlanPerspective({
   const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setAuto(detectTier()), []);
+  useEffect(() => setChosen(getModel()), []);
+
+  /** キーが本当に通るかを、絵を描く前に確かめる。使えるモデルもここで分かる */
+  async function connect(key: string) {
+    setChecking(true);
+    setError('');
+    setKeyNote('');
+    try {
+      const found = await listImageModels(key);
+      if (!found.length) {
+        setError('キーは通りましたが、このキーで使える画像モデルが見つかりませんでした');
+        return;
+      }
+      setApiKey(key);
+      setModels(found);
+      const best = found[0]!.id;
+      setModel(best);
+      setChosen(best);
+      setKeyNote(`つながりました。使えるモデル ${found.length} 件のうち ${best} を選びました`);
+      setNeedKey(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'キーを確かめられませんでした');
+    } finally {
+      setChecking(false);
+    }
+  }
 
   // 画面に入ったときだけ3Dを動かす。携帯でカードを並べても電池と描画が持つように
   useEffect(() => {
@@ -134,7 +165,7 @@ export default function PlanPerspective({
         use: desiredUse ? USE_LABELS[desiredUse] : undefined,
         light: LIGHTS.find((l) => l.id === light)?.phrase,
       });
-      setResult(await renderPerspective(png, prompt, key));
+      setResult(await renderPerspective(png, prompt, key, chosen));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'パースの生成に失敗しました');
     } finally {
@@ -241,6 +272,7 @@ export default function PlanPerspective({
           <p style={{ margin: '6px 0 8px', fontSize: 12.5, lineHeight: 1.8 }}>
             Google AI Studio で取得した Gemini のキーを入れてください。
             キーはこの端末のブラウザにだけ保存され、Google 以外には送られません。
+            保存する前に、実際に通るかどうかを確かめます。
           </p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <input
@@ -249,18 +281,20 @@ export default function PlanPerspective({
               onChange={(e) => setKeyInput(e.target.value)}
               placeholder="APIキーを貼り付け"
               className="hb-field"
+              autoComplete="off"
+              spellCheck={false}
               style={{ flex: 1, minWidth: 200 }}
             />
             <button
               className="hb-btn hb-dark"
+              disabled={checking || !keyInput.trim()}
               onClick={() => {
-                setApiKey(keyInput.trim());
+                const k = keyInput.trim();
                 setKeyInput('');
-                setNeedKey(false);
-                void makePerspective();
+                void connect(k);
               }}
             >
-              保存して描く
+              {checking ? '確かめています…' : 'つないで確かめる'}
             </button>
           </div>
           <p style={{ margin: '8px 0 0', fontSize: 11.5 }}>
@@ -272,7 +306,32 @@ export default function PlanPerspective({
         </div>
       )}
 
+      {keyNote && <p className="hb-faint" style={{ marginTop: 10, fontSize: 12 }}>{keyNote}</p>}
+
+      {models.length > 1 && (
+        <label className="hb-faint" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+          使うモデル
+          <select
+            className="hb-field"
+            value={chosen}
+            onChange={(e) => { setChosen(e.target.value); setModel(e.target.value); }}
+            style={{ marginLeft: 8 }}
+          >
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
       {error && <p className="hb-warn" style={{ marginTop: 10, fontSize: 12.5 }}>{error}</p>}
+
+      {result?.model && (
+        <p className="hb-faint" style={{ marginTop: 8, fontSize: 11.5 }}>
+          {result.model} で生成
+          {typeof result.tokens === 'number' && ` ／ ${result.tokens.toLocaleString()} トークン`}
+        </p>
+      )}
 
       <p className="persp-note">
         {site

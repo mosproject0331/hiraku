@@ -8,8 +8,12 @@ import type { RenovationScene } from '@hiraku/core';
  */
 const KEY_STORAGE = 'hiraku-image-api-key';
 const PROVIDER_STORAGE = 'hiraku-image-provider';
+const MODEL_STORAGE = 'hiraku-image-model';
 
 export type Provider = 'gemini';
+
+/** Google の生成API。画像モデルは v1beta にしかいない */
+const API_ROOT = 'https://generativelanguage.googleapis.com/v1beta';
 
 export function getApiKey(): string {
   if (typeof window === 'undefined') return '';
@@ -21,6 +25,80 @@ export function setApiKey(key: string): void {
 }
 export function getProvider(): Provider {
   return (window.localStorage.getItem(PROVIDER_STORAGE) as Provider) || 'gemini';
+}
+export function getModel(): string {
+  if (typeof window === 'undefined') return '';
+  return window.localStorage.getItem(MODEL_STORAGE) ?? '';
+}
+export function setModel(id: string): void {
+  if (id) window.localStorage.setItem(MODEL_STORAGE, id);
+  else window.localStorage.removeItem(MODEL_STORAGE);
+}
+
+export interface ImageModel {
+  /** models/ を外した素のID */
+  id: string;
+  label: string;
+  /** 新しい・上位のものほど大きい。既定の選択に使う */
+  rank: number;
+}
+
+/**
+ * どのモデル名が有効かは、こちらでは決められない。Google側の一覧に聞く。
+ * 名前は将来変わるので、ID決め打ちではなく「画像を返せると宣言しているもの」を拾う。
+ */
+export function rankModel(id: string): number {
+  const v = /(\d+(?:\.\d+)?)/.exec(id);
+  let r = v ? Number(v[1]) * 10 : 0;
+  if (/pro/.test(id)) r += 4;
+  if (/lite/.test(id)) r -= 2;
+  if (/preview|exp|latest/.test(id)) r -= 1;
+  return r;
+}
+
+interface RawModel {
+  name?: string;
+  displayName?: string;
+  description?: string;
+  supportedGenerationMethods?: string[];
+  supportedActions?: string[];
+}
+
+/** そのキーで実際に使える画像モデルを一覧する。キーの確認も兼ねる */
+export async function listImageModels(apiKey: string): Promise<ImageModel[]> {
+  if (!apiKey) throw new Error('APIキーが入っていません');
+  const res = await fetch(`${API_ROOT}/models?pageSize=1000`, {
+    headers: { 'x-goog-api-key': apiKey },
+  });
+  if (!res.ok) throw new Error(await errorMessage(res));
+  const data = (await res.json()) as { models?: RawModel[] };
+  const out: ImageModel[] = [];
+  for (const m of data.models ?? []) {
+    const id = (m.name ?? '').replace(/^models\//, '');
+    if (!id) continue;
+    const methods = m.supportedGenerationMethods ?? m.supportedActions ?? [];
+    if (!methods.some((x) => /generateContent|predict/i.test(x))) continue;
+    // 画像を「出せる」ものだけ。embedding や TTS、音声、動画は落とす
+    if (!/image/i.test(id)) continue;
+    if (/embed|vision-only|tts|audio|video|veo|imagen-\d+-.*-edit/i.test(id)) continue;
+    out.push({ id, label: m.displayName || id, rank: rankModel(id) });
+  }
+  out.sort((a, b) => b.rank - a.rank || a.id.localeCompare(b.id));
+  return out;
+}
+
+async function errorMessage(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => ({}))) as
+    | { error?: { message?: string; status?: string } }
+    | { error?: { message?: string } }[];
+  const err = Array.isArray(body) ? body[0]?.error : body.error;
+  const msg = err?.message ?? '';
+  if (res.status === 400 && /API key/i.test(msg)) return 'APIキーが正しくないようです。貼り間違いか、無効になっている可能性があります';
+  if (res.status === 403) return 'このキーでは許可されていません。Google AI Studio でキーの制限を確認してください';
+  if (res.status === 404) return 'このモデルはこのキーでは使えません';
+  if (res.status === 429) return '回数の上限に当たりました。少し置いてからお試しください';
+  if (res.status >= 500) return 'Google側が混み合っているようです。少し置いてからお試しください';
+  return msg || `通信に失敗しました (HTTP ${res.status})`;
 }
 
 export interface PerspectiveOptions {
@@ -93,6 +171,10 @@ export function buildPrompt(scene: RenovationScene, cameraLabel: string, opt: Pe
 export interface PerspectiveResult {
   dataUrl: string;
   note?: string;
+  /** 実際に使われたモデル */
+  model?: string;
+  /** Google 側で数えられたトークン。課金の目安 */
+  tokens?: number;
 }
 
 /** Gemini に画像+指示を送り、写実パースを受け取る */
@@ -101,50 +183,89 @@ export async function renderPerspective(
   conditionPng: string,
   prompt: string,
   apiKey: string,
-  model = 'gemini-3.1-flash-image',
+  model = getModel(),
 ): Promise<PerspectiveResult> {
   if (!apiKey) throw new Error('画像生成のAPIキーが設定されていません');
   const head = /^data:(image\/[\w+.-]+);base64,/.exec(conditionPng);
   const conditionMime = head?.[1] ?? 'image/png';
   const base64 = conditionPng.replace(/^data:image\/[\w+.-]+;base64,/, '');
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: conditionMime, data: base64 } },
-            ],
-          },
-        ],
-        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
-      }),
-    },
-  );
+  // モデル名は決め打ちにしない。指定がなければ、そのキーで使えるものを聞いてから選ぶ。
+  let id = model;
+  if (!id) {
+    const found = await listImageModels(apiKey);
+    if (!found.length) {
+      throw new Error('このキーで使える画像モデルが見つかりませんでした。Google AI Studio でモデルへのアクセスを確認してください');
+    }
+    id = found[0]!.id;
+    setModel(id);
+  }
+
+  const res = await fetch(`${API_ROOT}/models/${id}:generateContent`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: conditionMime, data: base64 } },
+          ],
+        },
+      ],
+      generationConfig: { responseModalities: ['TEXT', 'IMAGE'], temperature: 0.2 },
+    }),
+  });
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-    const msg = body.error?.message ?? `画像の生成に失敗しました (HTTP ${res.status})`;
-    if (res.status === 400 && /API key/i.test(msg)) throw new Error('APIキーが正しくないようです');
-    if (res.status === 429) throw new Error('リクエストが多すぎます。少し置いてからお試しください');
-    throw new Error(msg);
+    // 選んでいたモデルが消えた/使えなくなった場合だけ、一覧を取り直して1回やり直す
+    if ((res.status === 404 || res.status === 400) && model) {
+      setModel('');
+      const found = await listImageModels(apiKey).catch(() => [] as ImageModel[]);
+      const next = found.find((m) => m.id !== model);
+      if (next) {
+        setModel(next.id);
+        return renderPerspective(conditionPng, prompt, apiKey, next.id);
+      }
+    }
+    throw new Error(await errorMessage(res));
   }
 
   const data = (await res.json()) as {
-    candidates?: { content?: { parts?: { text?: string; inline_data?: { mime_type: string; data: string }; inlineData?: { mimeType: string; data: string } }[] } }[];
+    candidates?: {
+      finishReason?: string;
+      content?: {
+        parts?: {
+          text?: string;
+          inline_data?: { mime_type: string; data: string };
+          inlineData?: { mimeType: string; data: string };
+        }[];
+      };
+    }[];
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number };
+    promptFeedback?: { blockReason?: string };
   };
-  const parts = data.candidates?.[0]?.content?.parts ?? [];
-  const img = parts.find((p) => p.inline_data?.data || p.inlineData?.data);
+
+  const cand = data.candidates?.[0];
+  const parts = cand?.content?.parts ?? [];
+  const img = parts.find((x) => x.inline_data?.data || x.inlineData?.data);
   const raw = img?.inline_data?.data ?? img?.inlineData?.data;
+  const text = parts.find((x) => x.text)?.text;
+
   if (!raw) {
-    const text = parts.find((p) => p.text)?.text;
+    const blocked = data.promptFeedback?.blockReason ?? cand?.finishReason;
+    if (blocked && blocked !== 'STOP') {
+      throw new Error(`画像が返りませんでした（${blocked}）。下絵か指示文が弾かれた可能性があります`);
+    }
     throw new Error(text ? `画像が返りませんでした: ${text.slice(0, 120)}` : '画像が返りませんでした');
   }
+
   const mime = img?.inline_data?.mime_type ?? img?.inlineData?.mimeType ?? 'image/png';
-  return { dataUrl: `data:${mime};base64,${raw}`, note: parts.find((p) => p.text)?.text };
+  return {
+    dataUrl: `data:${mime};base64,${raw}`,
+    note: text,
+    model: id,
+    tokens: data.usageMetadata?.totalTokenCount,
+  };
 }
