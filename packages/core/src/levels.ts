@@ -141,3 +141,19 @@ export function totalFloorAreaM2(model: SpaceModel): number {
   const sum = allRooms(model).reduce((s, r) => s + r.room.areaM2, 0);
   return Math.round(sum * 100) / 100;
 }
+
+/**
+ * その階の床の高さ(m)。下の階を積み上げた分。
+ *
+ * 3Dの組み立てとカメラの高さで別々に計算していたせいで、
+ * 2階を見るとカメラが1階の高さに残る不具合が出た。ここ1か所にまとめる。
+ */
+export function levelBaseY(model: SpaceModel, levelIndex: number): number {
+  const li = Math.min(Math.max(levelIndex, 0), model.levels.length - 1);
+  return model.levels
+    .slice(0, li)
+    .reduce((y, lv) => y + (lv.heightMm ?? 2400) / 1000 + FLOOR_BUILDUP_M, 0);
+}
+
+/** 階と階のあいだの床組のぶん(m) */
+export const FLOOR_BUILDUP_M = 0.32;

@@ -1,6 +1,7 @@
 import type { RenovationOp, Room, SpaceModel } from './types';
 import { dist, distToEdges, pointInPolygon, poleOfInaccessibility, type XY } from './geometry';
 import { detectFaces, detectRooms } from './rooms';
+import { levelBaseY } from './levels';
 import { applyOps } from './ops';
 
 /** 仕上げ材の見た目。パース生成の条件画像に使う */
@@ -246,7 +247,7 @@ export function interiorCameras(model: SpaceModel, max = 3, levelIndex = 0): Cam
   const rooms = detectRooms(level);
   const faces = detectFaces(level);
   const nodeById = new Map(level.nodes.map((n) => [n.id, n] as const));
-  const EYE = 1.45;
+  const EYE = 1.45 + levelBaseY(model, levelIndex);
   const MIN_CLEARANCE = 520;
   const HALF_FOV = Math.cos((33 * Math.PI) / 180); // 探索に使う水平画角の半分
   const out: CameraSpec[] = [];

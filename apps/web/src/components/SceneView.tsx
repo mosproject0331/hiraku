@@ -1,26 +1,31 @@
 'use client';
 
 import {
-  forwardRef, useEffect, useImperativeHandle, useMemo, useRef,
+  forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState,
 } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
 import { Bloom, EffectComposer, N8AO, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { ToneMappingMode, type EffectComposer as PostComposer } from 'postprocessing';
-import type { CameraSpec, RenovationScene, Site } from '@hiraku/core';
+import type { CameraSpec, Member, RenovationScene, Site } from '@hiraku/core';
 import { buildBuilding, type Building, type LightKey, type WindowLight } from '@/lib/archviz';
 import { buildShell } from '@/lib/shell';
 import { setFinishTextureSize } from '@/lib/finish-material';
 import { layoutPlants, layoutProps } from '@/lib/entourage';
 import { Entourage, Vegetation } from '@/components/Furniture';
 import { profileFor, type QualityProfile } from '@/lib/quality';
+import { buildFrameMesh, type FrameColorMode } from '@/lib/frame-mesh';
+import { buildBlockers, moveVector, slide, startPoint, EYE_M, RUN_MS, WALK_MS } from '@/lib/walk';
 
 export interface SceneViewHandle {
   /** いまの見え方をPNGで取り出す（写実化の下絵に使う） */
   capture: () => Promise<string | null>;
 }
+
+/** 骨組みの見せ方 */
+export type FrameView = 'off' | 'ghost' | 'only';
 
 /** 時刻ごとの空と地面の色。窓の外の明るさがそのまま室内の印象を決める */
 const SKY: Record<
@@ -215,6 +220,138 @@ function Shell({
 /* ---------------- カメラ ---------------- */
 
 /** 天地を起こしたまま見回す。垂直線が倒れないのが建築の写真の基本 */
+/**
+ * 家の中を歩く。
+ *
+ * 見るだけの3Dと、歩ける3Dは別のものだ。歩くと、廊下の狭さも、
+ * 鴨居の低さも、光の入り方も、体で分かる。DIYの判断はそこから始まる。
+ */
+function WalkRig({
+  building, move, look, onMoved,
+}: {
+  building: Building;
+  /** 前後左右の入力 -1..1 */
+  move: React.RefObject<{ x: number; y: number; run: boolean }>;
+  /** 見回しの入力（ラジアン） */
+  look: React.RefObject<{ yaw: number; pitch: number }>;
+  onMoved?: (p: { x: number; z: number; yaw: number }) => void;
+}) {
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+  const size = useThree((s) => s.size);
+  const invalidate = useThree((s) => s.invalidate);
+  const blockers = useMemo(() => buildBlockers(building), [building]);
+  // 歩くあいだは frameloop="always" なので、最初の1枚だけ起こせばよい
+  const at = useRef<{ x: number; z: number } | null>(null);
+
+  useEffect(() => {
+    const s0 = startPoint(building);
+    at.current = { x: s0.x, z: s0.z };
+    look.current.yaw = s0.yaw;
+    look.current.pitch = 0;
+    camera.fov = 68; // 歩くときは広めに。実際の視野に近づける
+    camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+    invalidate();
+  }, [building, camera, invalidate, look]);
+
+  useEffect(() => {
+    camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+  }, [camera, size.width, size.height]);
+
+  useFrame((_, dt) => {
+    const p = at.current;
+    if (!p) return;
+    const step = Math.min(dt, 0.05);
+    const m = move.current;
+    const l = look.current;
+    const speed = (m.run ? RUN_MS : WALK_MS) * step;
+
+    if (m.x !== 0 || m.y !== 0) {
+      const d = moveVector(l.yaw, m.x, m.y);
+      const to = slide(p.x, p.z, p.x + d.x * speed, p.z + d.z * speed, blockers);
+      p.x = to.x;
+      p.z = to.z;
+      onMoved?.({ x: p.x, z: p.z, yaw: l.yaw });
+    }
+
+    camera.position.set(p.x, building.baseY + EYE_M, p.z);
+    camera.rotation.set(l.pitch, l.yaw, 0, 'YXZ');
+  });
+
+  return null;
+}
+
+/** 軸組を描く層。透かして見るときは壁の向こうも出す */
+function FrameLayer({
+  members, view, colorMode, baseY, selected, onPick,
+}: {
+  members: Member[];
+  view: FrameView;
+  colorMode: FrameColorMode;
+  baseY: number;
+  selected?: string | null;
+  onPick?: (m: Member) => void;
+}) {
+  const invalidate = useThree((s) => s.invalidate);
+  const built = useMemo(() => buildFrameMesh(members, { colorMode }), [members, colorMode]);
+  const live = useRef<ReturnType<typeof buildFrameMesh> | null>(null);
+  const mounted = useRef(0);
+
+  useEffect(() => {
+    const old = live.current;
+    live.current = built;
+    if (old && old !== built) old.dispose();
+    invalidate();
+  }, [built, invalidate]);
+
+  useEffect(() => {
+    mounted.current += 1;
+    return () => {
+      mounted.current -= 1;
+      setTimeout(() => {
+        if (mounted.current === 0) {
+          live.current?.dispose();
+          live.current = null;
+        }
+      }, 0);
+    };
+  }, []);
+
+  useEffect(() => {
+    built.highlight(selected ?? null);
+    invalidate();
+  }, [built, selected, invalidate]);
+
+  useEffect(() => {
+    const mat = built.mesh.material as THREE.MeshStandardMaterial;
+    const ghost = view === 'ghost';
+    mat.depthTest = !ghost;
+    mat.transparent = ghost;
+    mat.opacity = ghost ? 0.92 : 1;
+    mat.needsUpdate = true;
+    built.mesh.renderOrder = ghost ? 20 : 0;
+    invalidate();
+  }, [built, view, invalidate]);
+
+  if (view === 'off') return null;
+  return (
+    <primitive
+      object={built.group}
+      position={[0, baseY, 0]}
+      dispose={null}
+      onClick={(e: { stopPropagation: () => void; instanceId?: number }) => {
+        if (!onPick || e.instanceId === undefined) return;
+        const m = built.at(e.instanceId);
+        if (m) {
+          e.stopPropagation();
+          onPick(m);
+        }
+      }}
+    />
+  );
+}
+
 function CameraRig({ cam, shift }: { cam: CameraSpec; shift?: number }) {
   // 外観は建物の上まで入れたいので、レンズを大きく上へずらす（あおらずに）
   const lensShift = shift ?? (cam.id === 'cam-exterior' ? 0.55 : 0.06);
@@ -438,12 +575,124 @@ export interface SceneViewProps {
   when?: Date;
   /** どの階を見ているか */
   levelIndex?: number;
+  /** 歩き回るか */
+  walk?: boolean;
+  /** 軸組。渡すと骨組みを描ける */
+  frame?: Member[];
+  frameView?: FrameView;
+  frameColor?: FrameColorMode;
+  selectedMemberId?: string | null;
+  onPickMember?: (m: Member) => void;
 }
 
 const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView(
-  { scene, camera, light = 'noon', quality, use, site, when, levelIndex = 0 },
+  {
+    scene, camera, light = 'noon', quality, use, site, when, levelIndex = 0,
+    walk = false, frame, frameView = 'off', frameColor = 'role',
+    selectedMemberId, onPickMember,
+  },
   ref,
 ) {
+  // 歩くときの入力。毎フレーム読むので ref で持つ
+  const move = useRef({ x: 0, y: 0, run: false });
+  const look = useRef({ yaw: 0, pitch: 0 });
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  const [stick, setStick] = useState<{ x: number; y: number } | null>(null);
+
+  // キーボード。WASD と矢印、Shiftで速く
+  useEffect(() => {
+    if (!walk) return;
+    const set = (e: KeyboardEvent, on: boolean) => {
+      const k = e.key.toLowerCase();
+      const m = move.current;
+      if (k === 'w' || k === 'arrowup') m.y = on ? 1 : 0;
+      else if (k === 's' || k === 'arrowdown') m.y = on ? -1 : 0;
+      else if (k === 'a' || k === 'arrowleft') m.x = on ? -1 : 0;
+      else if (k === 'd' || k === 'arrowright') m.x = on ? 1 : 0;
+      else if (k === 'shift') m.run = on;
+      else return;
+      e.preventDefault();
+    };
+    const dn = (e: KeyboardEvent) => set(e, true);
+    const up = (e: KeyboardEvent) => set(e, false);
+    window.addEventListener('keydown', dn);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', dn);
+      window.removeEventListener('keyup', up);
+      move.current = { x: 0, y: 0, run: false };
+    };
+  }, [walk]);
+
+  // 画面をなぞって見回す。左下のスティックで歩く
+  useEffect(() => {
+    if (!walk) return;
+    const el = hostRef.current;
+    if (!el) return;
+    let lookId: number | null = null;
+    let stickId: number | null = null;
+    let last = { x: 0, y: 0 };
+    let origin = { x: 0, y: 0 };
+
+    const down = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      const lx = e.clientX - r.left;
+      const ly = e.clientY - r.top;
+      const inStick = lx < r.width * 0.42 && ly > r.height * 0.55;
+      if (inStick && stickId === null) {
+        stickId = e.pointerId;
+        origin = { x: lx, y: ly };
+        setStick({ x: 0, y: 0 });
+      } else if (lookId === null) {
+        lookId = e.pointerId;
+        last = { x: e.clientX, y: e.clientY };
+      }
+      el.setPointerCapture(e.pointerId);
+    };
+    const mv = (e: PointerEvent) => {
+      if (e.pointerId === stickId) {
+        const r = el.getBoundingClientRect();
+        const dx = e.clientX - r.left - origin.x;
+        const dy = e.clientY - r.top - origin.y;
+        const max = 56;
+        const n = Math.min(1, Math.hypot(dx, dy) / max);
+        const a = Math.atan2(dy, dx);
+        const vx = Math.cos(a) * n;
+        const vy = Math.sin(a) * n;
+        move.current.x = vx;
+        move.current.y = -vy;
+        move.current.run = n > 0.92;
+        setStick({ x: vx * max, y: vy * max });
+      } else if (e.pointerId === lookId) {
+        look.current.yaw -= (e.clientX - last.x) * 0.0042;
+        look.current.pitch = Math.max(
+          -1.2, Math.min(1.2, look.current.pitch - (e.clientY - last.y) * 0.0035),
+        );
+        last = { x: e.clientX, y: e.clientY };
+      }
+    };
+    const up = (e: PointerEvent) => {
+      if (e.pointerId === stickId) {
+        stickId = null;
+        move.current = { x: 0, y: 0, run: false };
+        setStick(null);
+      }
+      if (e.pointerId === lookId) lookId = null;
+    };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', mv);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    return () => {
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', mv);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      setStick(null);
+    };
+  }, [walk]);
+
   const handle = useRef<SceneViewHandle | null>(null);
   const composerRef = useRef<PostComposer | null>(null);
   useImperativeHandle(ref, () => ({ capture: () => handle.current?.capture() ?? Promise.resolve(null) }), []);
@@ -501,9 +750,10 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
   const sky = SKY[light];
   const night = light === 'night';
 
-  return (
+  const canvas = (
     <Canvas
-      frameloop="demand"
+      /* 止まって見るときは必要なときだけ描く。歩くあいだは連続して描く */
+      frameloop={walk ? 'always' : 'demand'}
       dpr={[1, quality.dprMax]}
       shadows={quality.shadows}
       gl={{
@@ -521,7 +771,17 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
     >
       <Env intensity={sky.env} />
       <Sky light={light} radius={building.bounds.r} />
-      <CameraRig cam={camera} />
+      {walk ? <WalkRig building={building} move={move} look={look} /> : <CameraRig cam={camera} />}
+      {frame && frameView !== 'off' && (
+        <FrameLayer
+          members={frame}
+          view={frameView}
+          colorMode={frameColor}
+          baseY={building.baseY}
+          selected={selectedMemberId}
+          onPick={onPickMember}
+        />
+      )}
       <Capturer handle={handle} composer={composerRef} />
       <DevHandle building={building} props={props} cams={scene.cameras} capture={handle} />
 
@@ -553,7 +813,7 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
       />
       <WindowLights windows={building.windows} light={light} gain={sky.rect} />
 
-      {outside ? (
+      {frameView === 'only' ? null : outside ? (
         stack.map((b, i) => (
           <Shell key={i} building={b} transmission={quality.transmission} exterior />
         ))
@@ -593,6 +853,25 @@ const SceneView = forwardRef<SceneViewHandle, SceneViewProps>(function SceneView
         {quality.msaa === 0 ? <SMAA /> : <></>}
       </EffectComposer>
     </Canvas>
+  );
+
+  return (
+    <div ref={hostRef} className={walk ? 'scene-host walking' : 'scene-host'}>
+      {canvas}
+      {walk && (
+      <div className="walk-hud" aria-hidden>
+        <div className="walk-stick">
+          <span
+            className="walk-knob"
+            style={stick ? { transform: `translate(${stick.x}px, ${stick.y}px)` } : undefined}
+          />
+        </div>
+        <p className="walk-tip">
+          画面をなぞって見回す／左下で歩く<span className="walk-kb">　W A S D でも歩けます</span>
+        </p>
+      </div>
+      )}
+    </div>
   );
 });
 

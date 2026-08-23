@@ -1,3 +1,4 @@
+import type { MemberFound } from '@hiraku/core';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
@@ -138,6 +139,12 @@ interface EditorState {
   /** 組み上がった改修案 */
   proposals: Proposal[];
   priceBook: PriceBook;
+  /** 軸組で「実際に見て確かめた」記録。部材IDごと */
+  frameFound: Record<string, MemberFound>;
+  /** 古い民家として組むか（柱が太く、貫がある想定になる） */
+  frameMinka: boolean;
+  setFound: (memberId: string, found: MemberFound | null) => void;
+  setFrameMinka: (v: boolean) => void;
   tool: Tool;
   openingKind: Opening['kind'];
   selected: Selected;
@@ -245,6 +252,8 @@ export const useEditor = create<EditorState>()(
   hearing: {},
   proposals: [],
   priceBook: {},
+  frameFound: {},
+  frameMinka: true,
   selected: null,
   pendingNodeId: null,
   history: [],
@@ -451,6 +460,14 @@ export const useEditor = create<EditorState>()(
     set({ quote: { ...cur, ...patch } });
   },
   setPriceBook: (priceBook) => set({ priceBook }),
+  setFound: (memberId, found) =>
+    set((s) => {
+      const next = { ...s.frameFound };
+      if (found) next[memberId] = found;
+      else delete next[memberId];
+      return { frameFound: next };
+    }),
+  setFrameMinka: (frameMinka) => set({ frameMinka }),
   /* ── 数値で引く ──
      実測した寸法をそのまま打ち込めるようにする。
      いずれも履歴を積むので、取り消せる。 */
@@ -614,6 +631,8 @@ export const useEditor = create<EditorState>()(
         levelIndex: s.levelIndex,
         hearing: s.hearing,
         priceBook: s.priceBook,
+      frameFound: s.frameFound,
+      frameMinka: s.frameMinka,
       }),
     },
   ),

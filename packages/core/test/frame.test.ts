@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { deserialize } from '../src/serialize';
 import {
-  beamGuess, buildFrame, frameTakeoff, recordFound, wallLoad, MEMBER_LABEL, MEMBER_ROLE,
+  applyFound, beamGuess, buildFrame, frameTakeoff, recordFound, wallLoad, MEMBER_LABEL, MEMBER_ROLE,
 } from '../src/frame';
 import { outerBoundary } from '../src/rooms';
+import { levelBaseY } from '../src/levels';
+import { interiorCameras } from '../src/scene';
 import { signedAreaMm2 } from '../src/geometry';
 import sample from '../fixtures/sample-minka.json';
 import type { Roof } from '../src/types';
@@ -153,5 +155,53 @@ describe('前提は隠さない', () => {
   it('組み立てに使った前提が読める形で返る', () => {
     expect(frame.assumptions.length).toBeGreaterThan(3);
     expect(frame.assumptions.join()).toContain('筋かいの位置は推定');
+  });
+});
+
+describe('確かめた記録が迷子にならない', () => {
+  it('組み直してもIDが変わらない', () => {
+    const again = buildFrame(withRoof, 0, { minka: true });
+    expect(again.members.map((m) => m.id)).toEqual(frame.members.map((m) => m.id));
+  });
+
+  it('IDは位置から作られるので、生成順に依らない', () => {
+    for (const m of frame.members) {
+      expect(m.id).toMatch(/^[a-z]+:-?\d+,-?\d+,-?\d+>-?\d+,-?\d+,-?\d+$/);
+    }
+    // 同じIDが2本出ない
+    expect(new Set(frame.members.map((m) => m.id)).size).toBe(frame.members.length);
+  });
+
+  it('保存した記録を貼り直せる', () => {
+    const target = frame.members.find((m) => m.kind === 'taruki')!;
+    const saved = { [target.id]: { section: { w: 45, h: 90 }, species: 'sugi' as const, state: 'ok' as const } };
+    const back = applyFound(buildFrame(withRoof, 0, { minka: true }), saved);
+    const got = back.members.find((m) => m.id === target.id)!;
+    expect(got.confidence).toBe('measured');
+    expect(got.section).toEqual({ w: 45, h: 90 });
+    expect(back.members.filter((m) => m.confidence === 'measured')).toHaveLength(1);
+  });
+
+  it('もう存在しない部材の記録は、静かに無視される', () => {
+    const back = applyFound(frame, { 'dodai:99999,99999,0>99999,99999,0': { state: 'bad' } });
+    expect(back.members.every((m) => m.confidence === 'estimated')).toBe(true);
+  });
+});
+
+describe('階を上げてもカメラが置き去りにならない', () => {
+  it('2階を見るときは、カメラも2階の床の上にいる', () => {
+    // 2階のある家を組む
+    const two = { ...model, levels: [model.levels[0]!, { ...model.levels[0]!, id: 'L2', name: '2階' }] };
+    const g = levelBaseY(two, 1);
+    expect(g).toBeGreaterThan(2.4);
+    for (const c of interiorCameras(two, 3, 1)) {
+      expect(c.position[1], c.label).toBeGreaterThan(g);
+      expect(c.position[1] - g).toBeLessThan(2.0); // 目の高さのまま
+      expect(c.target[1]).toBeCloseTo(c.position[1], 5);
+    }
+    // 1階は今までどおり
+    for (const c of interiorCameras(two, 3, 0)) {
+      expect(c.position[1]).toBeCloseTo(1.45, 5);
+    }
   });
 });

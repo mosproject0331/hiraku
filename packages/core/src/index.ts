@@ -52,6 +52,8 @@ export {
   addLevel,
   removeLevel,
   totalFloorAreaM2,
+  levelBaseY,
+  FLOOR_BUILDUP_M,
 } from './levels';
 export type { Located } from './levels';
 export {
@@ -60,6 +62,7 @@ export {
   frameTakeoff,
   wallLoad,
   recordFound,
+  applyFound,
   MEMBER_LABEL,
   MEMBER_ROLE,
   SPECIES_LABEL,

@@ -1,5 +1,5 @@
 import {
-  bearingToPlanHeading, FINISHES, pointInPolygon, solarPosition, sunTimes,
+  bearingToPlanHeading, FINISHES, levelBaseY, pointInPolygon, solarPosition, sunTimes,
   type Finish, type RenovationScene, type Roof, type RoomScene, type Site, type XY,
 } from '@hiraku/core';
 
@@ -321,9 +321,7 @@ export function buildBuilding(
 
   const isTop = li === scene.model.levels.length - 1;
   // 下の階を積み上げた高さ。床組のぶんを少し足す
-  const baseY = scene.model.levels
-    .slice(0, li)
-    .reduce((y, lv) => y + (lv.heightMm ?? 2400) / 1000 + 0.32, 0);
+  const baseY = levelBaseY(scene.model, li);
   const exteriorFinish =
     FINISHES[scene.model.exteriorWall ?? 'siding_wood'] ?? FINISHES['siding_wood']!;
   return {

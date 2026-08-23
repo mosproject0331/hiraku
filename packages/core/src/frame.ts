@@ -233,8 +233,10 @@ function push(
   extra?: { wallId?: string; roomId?: string },
 ): void {
   c.n += 1;
+  // IDは生成順ではなく位置から作る。間取りを直しても、確かめた記録が迷子にならないように
+  const k = (v: number) => Math.round(v / 5) * 5;
   c.out.push({
-    id: `${kind}-${c.n}`,
+    id: `${kind}:${k(a.x)},${k(a.y)},${k(a.z)}>${k(b.x)},${k(b.y)},${k(b.z)}`,
     kind,
     section,
     a,
@@ -895,6 +897,25 @@ export function wallLoad(frame: Frame, wallId: string): WallLoad {
     : 'この壁の上に載っているものは見当たりませんが、実際に見て確かめてください';
 
   return { wallId, carrying, posts, braced, verdict, needsExpert };
+}
+
+/** 保存してある「見て確かめた記録」を、組み直した軸組に貼り直す */
+export function applyFound(frame: Frame, found: Record<string, MemberFound>): Frame {
+  if (!Object.keys(found).length) return frame;
+  return {
+    ...frame,
+    members: frame.members.map((m) => {
+      const f = found[m.id];
+      if (!f) return m;
+      return {
+        ...m,
+        found: f,
+        section: f.section ?? m.section,
+        species: f.species ?? m.species,
+        confidence: 'measured' as Confidence,
+      };
+    }),
+  };
 }
 
 /** 見て確かめた結果を入れる。ここだけが confidence を上げられる */
