@@ -54,3 +54,26 @@ export {
   totalFloorAreaM2,
 } from './levels';
 export type { Located } from './levels';
+export {
+  buildFrame,
+  beamGuess,
+  frameTakeoff,
+  wallLoad,
+  recordFound,
+  MEMBER_LABEL,
+  MEMBER_ROLE,
+  SPECIES_LABEL,
+} from './frame';
+export type {
+  Frame,
+  Member,
+  MemberKind,
+  MemberFound,
+  FrameQuantity,
+  FrameOptions,
+  Section,
+  Species,
+  WallLoad,
+  BeamGuess,
+  P3,
+} from './frame';
